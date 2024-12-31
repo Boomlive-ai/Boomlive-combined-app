@@ -1,0 +1,98 @@
+    # Flask and related libraries
+    Flask==3.1.0
+    Flask-Cors==5.0.0
+    Werkzeug==3.1.3
+    Jinja2==3.1.5
+    MarkupSafe==3.0.2
+    itsdangerous==2.2.0
+
+    # Database and ORM
+    SQLAlchemy==2.0.36
+
+    # AI and Machine Learning
+    langchain==0.3.12
+    langchain-community==0.3.12
+    langchain-core==0.3.25
+    langchain-google-genai==2.0.7
+    langchain-openai==0.2.12
+    langchain-pinecone==0.2.0
+    langchain-text-splitters==0.3.3
+    langcodes==3.5.0
+    langgraph==0.2.59
+    langgraph-checkpoint==2.0.9
+    langgraph-sdk==0.1.45
+    langsmith==0.2.3
+    pinecone-client==5.0.1
+    pinecone-plugin-inference==1.1.0
+    pinecone-plugin-interface==0.0.7
+    openai==1.58.1
+    scikit-learn==1.6.0
+    scipy==1.14.1
+    tenacity==9.0.0
+    fuzzywuzzy==0.18.0
+    RapidFuzz==3.11.0
+    Levenshtein==0.26.1
+
+    # Data Processing
+    # numpy==2.2.1
+    pandas
+    matplotlib-inline==0.1.7
+    tqdm==4.67.1
+
+    # Audio, Video, and Image Processing
+    moviepy==2.1.1
+    pillow==10.4.0
+    imageio==2.36.1
+    imageio-ffmpeg==0.5.1
+    opencv-python==4.10.0.84
+    pydub==0.25.1
+    SpeechRecognition==3.12.0
+    bs4==0.0.2
+
+    # API and HTTP Clients
+    httpx==0.28.1
+    httpx-sse==0.4.0
+    httpcore==1.0.7
+    httplib2==0.22.0
+    requests==2.32.3
+    requests-toolbelt==1.0.0
+    urllib3==2.3.0
+
+    # Google APIs
+    google-api-core==2.24.0
+    google-api-python-client==2.156.0
+    google-auth==2.37.0
+    google-auth-httplib2==0.2.0
+    google-generativeai==0.8.3
+    google-ai-generativelanguage==0.6.10
+    googleapis-common-protos==1.66.0
+
+    # Utility Libraries
+    python-dotenv==1.0.1
+    PyYAML==6.0.2
+    jsonpatch==1.33
+    jsonpointer==3.0.0
+    typing-inspect==0.9.0
+    typing_extensions==4.12.2
+    protobuf==5.29.2
+    proto-plus==1.25.0
+    MarkupSafe==3.0.2
+
+    # Development and Debugging
+    ipython==8.31.0
+    stack-data==0.6.3
+    traitlets==5.14.3
+    pyparsing==3.2.0
+
+    # Natural Language Processing
+    langcodes==3.5.0
+    srsly==2.5.0
+    cymem==2.0.10
+    preshed==3.0.9
+    murmurhash==1.0.11
+
+    # Miscellaneous
+    Pygments==2.18.0
+    markdown-it-py==3.0.0
+    rich==13.9.4
+    wcwidth==0.2.13
