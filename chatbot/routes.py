@@ -20,7 +20,8 @@ def api_overview():
         "GET /query": "Query the chatbot with a question (requires 'question' and 'thread_id' parameters).",
         "POST /store_articles": "Store articles for a custom date range (requires 'from_date' and 'to_date' in the body).",
         "POST /store_daily_articles": "Store articles for the current day.",
-        "GET /generate_questions": "Fetch latest articles and generate questions from Boomlive."
+        "GET /generate_questions": "Fetch latest articles and generate questions from Boomlive.",
+        "GET /fetch_articles": "Fetch articles of specific article type (requires 'articleType' parameter)."
     }
     return jsonify(routes), 200
 
