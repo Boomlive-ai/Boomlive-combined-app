@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from chatbot.bot import Chatbot
 from chatbot.utils import extract_sources_and_result, prioritize_sources
 from langchain_core.messages import HumanMessage
-from chatbot.tools import fetch_questions_on_latest_articles_in_Boomlive
+from chatbot.tools import fetch_questions_on_latest_articles_in_Boomlive, fetch_articles_based_on_articletype
 from chatbot.vectorstore import StoreCustomRangeArticles, StoreDailyArticles
 chatbot_bp = Blueprint('chatbot', __name__)
 mybot = Chatbot()
@@ -108,6 +108,22 @@ def generate_questions_route():
     try:
         # Call the imported function to fetch and generate questions
         results = fetch_questions_on_latest_articles_in_Boomlive()
+        return jsonify(results), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+    
+
+
+
+@chatbot_bp.route('/fetch_articles', methods=['GET'])
+def fetch_articles():
+    """
+    Route to fetch articles of specific article type.
+    """
+    articleType = request.args.get('articleType')
+    try:
+        # Call the imported function to fetch and generate questions
+        results = fetch_articles_based_on_articletype(articleType)
         return jsonify(results), 200
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500

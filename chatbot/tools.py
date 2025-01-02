@@ -107,3 +107,36 @@ def fetch_questions_on_latest_articles_in_Boomlive():
 
     # Ensure only 20 questions are returned
     return {"questions": questions[:20]}
+
+
+
+def fetch_articles_based_on_articletype(articleType):
+    urls=[]
+    api_url = 'https://boomlive.in/dev/h-api/news'
+    headers = {
+        "accept": "*/*",
+        "s-id": "1w3OEaLmf4lfyBxDl9ZrLPjVbSfKxQ4wQ6MynGpyv1ptdtQ0FcIXfjURSMRPwk1o"
+    }
+    try:
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        if response.status_code == 200:
+            # Break if no articles are found
+            if not data.get("news"):
+                return {"questions": []}
+            # Filter URLs containing 'fact-check' in the URL path
+            for news_item in data.get("news", []):
+                url_path = news_item.get("url")
+                if url_path and f"https://www.boomlive.in/{articleType}" in url_path:
+                    urls.append(url_path)
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch articles: {e}")
+        return {"error": f"Failed to fetch articles: {e}"}
+    
+        # If no relevant articles are found
+    if not urls:
+        print(f"No {articleType} articles found.")
+        return [{"urls": []}]
+        
+    return {"urls": urls}
