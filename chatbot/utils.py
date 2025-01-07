@@ -1,4 +1,4 @@
-import re
+import re, json
 from langchain_core.messages import HumanMessage
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -141,7 +141,7 @@ import requests
 import re
 from fuzzywuzzy import process
 
-def fetch_latest_article_urls(query):
+def fetch_latest_article_urls(query, article_type):
     """
     Fetches the latest articles from the BoomLive API, filters them based on exact keyword matching
     (fact-check, decode, explainers, mediabuddhi, boom-research), and sorts them by the largest number at the end of the URL.
@@ -153,27 +153,27 @@ def fetch_latest_article_urls(query):
     Returns:
         list: A list of the top 5 filtered URLs, sorted by the largest number at the end of the URL.
     """
-    # List of valid keywords
-    valid_keywords = ["fact-check", "decode", "explainers", "mediabuddhi", "boom-research"]
+    # # List of valid keywords
+    # valid_keywords = ["fact-check", "decode", "explainers", "mediabuddhi", "boom-research"]
 
-    # Fuzzy match the user query with the valid keywords
-    matched_keywords = set()
+    # # Fuzzy match the user query with the valid keywords
+    # matched_keywords = set()
 
-    # Extract individual words from the query
-    query_words = query.lower().split()
+    # # Extract individual words from the query
+    # query_words = query.lower().split()
 
-    # Use fuzzy matching to find closest matches to each query word
-    for word in query_words:
-        best_match = process.extractOne(word, valid_keywords)  # Get the best match for each word
-        if best_match and best_match[1] >= 80:  # Match score threshold
-            matched_keywords.add(best_match[0])
+    # # Use fuzzy matching to find closest matches to each query word
+    # for word in query_words:
+    #     best_match = process.extractOne(word, valid_keywords)  # Get the best match for each word
+    #     if best_match and best_match[1] >= 80:  # Match score threshold
+    #         matched_keywords.add(best_match[0])
 
-    # If no valid keyword is identified, use all valid keywords
-    if not matched_keywords:
-        print(f"No specific keywords found in query: {query}. Using all valid keywords.")
-        matched_keywords = set(valid_keywords)
+    # # If no valid keyword is identified, use all valid keywords
+    # if not matched_keywords:
+    #     print(f"No specific keywords found in query: {query}. Using all valid keywords.")
+    #     matched_keywords = set(valid_keywords)
 
-    print(f"Matched keywords for filtering: {matched_keywords}")
+    # print(f"Matched keywords for filtering: {matched_keywords}")
 
     urls = []
     api_url = 'https://boomlive.in/dev/h-api/news'
@@ -199,7 +199,7 @@ def fetch_latest_article_urls(query):
                 url_path = news_item.get("url")
                 
                 # Ensure exact keyword matching in URL segments
-                if url_path and any(f"/{keyword}/" in url_path.lower() for keyword in matched_keywords):
+                if url_path and  f"https://www.boomlive.in/{article_type}" in url_path:
                     urls.append(url_path)
 
     except requests.exceptions.RequestException as e:
@@ -237,6 +237,76 @@ def get_current_date():
     """
     today = datetime.date.today()
     return today
+
+
+
+
+def fetch_custom_range_articles_urls(from_date: str = None, to_date: str = None):
+    """
+    Fetch and return article URLs based on a custom date range.
+
+    Args:
+        from_date (str): Start date in 'YYYY-MM-DD' format. Defaults to 6 months ago.
+        to_date (str): End date in 'YYYY-MM-DD' format. Defaults to today.
+
+    Returns:
+        list: List of article URLs.
+    """
+    # Initialize variables
+    article_urls = []
+    start_index = 0
+    count = 20
+    print("fetch_custom_range_articles_urls", from_date, to_date)
+    # Calculate default date range if not provided
+    current_date = datetime.date.today()
+    if not to_date:
+        to_date = current_date.strftime('%Y-%m-%d')
+    if not from_date:
+        custom_months_ago = current_date - datetime.timedelta(days=180)  # Default to 6 months ago
+        from_date = custom_months_ago.strftime('%Y-%m-%d')
+
+    # Validate the date range
+    if not validate_date_range(from_date, to_date):
+        print("Invalid date range. Ensure 'from_date' <= 'to_date' and format is YYYY-MM-DD.")
+        return []
+
+    print(f"Fetching article URLs from {from_date} to {to_date}....")
+
+    # Loop to fetch article URLs in batches
+    while True:
+        perpageurl = []
+        print("Current start index:", start_index)
+
+        # Construct API URL with the custom range
+        api_url = f'https://boomlive.in/dev/h-api/news?startIndex={start_index}&count={count}&fromDate={from_date}&toDate={to_date}'
+        headers = {
+            "accept": "*/*",
+            "s-id": "1w3OEaLmf4lfyBxDl9ZrLPjVbSfKxQ4wQ6MynGpyv1ptdtQ0FcIXfjURSMRPwk1o"
+        }
+        print(f"Requesting API URL: {api_url}")
+
+        # Make the API request
+        response = requests.get(api_url, headers=headers)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            data = response.json()
+
+            # Break the loop if no articles are returned
+            if not data.get("news"):
+                break
+
+            # Extract article URLs from the response
+            for news_item in data.get("news", []):
+                url_path = news_item.get("url")
+                if url_path:
+                    article_urls.append(url_path)
+            start_index += count
+        else:
+            print(f"Failed to fetch articles. Status code: {response.status_code}")
+            break
+    print(article_urls)        
+    return article_urls[:5]
 
 ################################################VECTOR STORE DATABASE################################################################
 

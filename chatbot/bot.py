@@ -14,7 +14,9 @@ import pinecone
 from langchain_openai import OpenAIEmbeddings
 import re
 from langgraph.prebuilt import ToolNode
-from chatbot.utils import fetch_latest_article_urls, get_current_date
+from chatbot.utils import fetch_latest_article_urls, get_current_date, fetch_custom_range_articles_urls
+from langchain_openai import ChatOpenAI
+import calendar
 # Load environment variables
 load_dotenv()
 
@@ -25,7 +27,7 @@ class RAGQuery(BaseModel):
 # Chatbot class
 class Chatbot:
     def __init__(self):
-        self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+        self.llm =ChatOpenAI(model_name="gpt-4o", temperature=0)
         self.memory = MemorySaver()
 
         # Initialize Pinecone indices
@@ -54,16 +56,26 @@ class Chatbot:
         """
         Enhanced mediator that handles fact-check queries and invalid/random queries.
         """
+        article_type = "all"  # Default to 'all' if no specific article type is provided
         
         # Check if the query is too short or contains random gibberish
         if len(query.strip()) < 3 or not re.match(r'[A-Za-z0-9\s,.\'-]+$', query):
             return {
                 "fetch_latest_articles": False,
                 "use_rag": False,
+                "custom_date_range": False,
                 "index_to_use": None,
-                "response": "Please provide a more specific query."
+                "response": "Please provide a more specific query.",
+                "article_type":article_type
             }
         print(f"Mediator called with query: {query}")
+  # Check for custom date range
+        date_pattern = re.compile(
+            r'(\bfrom\s+\d{4}-\d{2}-\d{2}\b.*?to\s+\d{4}-\d{2}-\d{2}\b)|'
+            r'(\b(last|this)\s+(week|month|year)\b)', 
+            re.IGNORECASE
+        )
+        custom_date_match = date_pattern.search(query)
 
         # Check if query is related to fact-checking
         fact_check_keywords = [
@@ -72,24 +84,16 @@ class Chatbot:
             'false claim', 'incorrect', 'misleading', 'manipulated', 'spliced', 'fake', 'inaccurate', 'disinformation'
         ]
         
-        # If the query contains any of these keywords, mark it as a fact-check query
-        is_fact_check = any(keyword in query.lower() for keyword in fact_check_keywords)
-        print("is_fact_check", is_fact_check)
-        # Force the use of RAG for fact-check queries
-        if is_fact_check:
-            return {
-                "fetch_latest_articles": False,  # Skip fetching articles if fact-checking
-                "use_rag": True,  # Always use RAG for fact-checking queries
-                "index_to_use": "both",  # Check both indexes for relevant data (latest and old)
-                "response": "Query detected as fact-check, using RAG tool."
-            }
+
 
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
-            f"1. Is the query asking for the latest articles, news, fact checks, explainers, updates, or general information without specifying a specific topic? Respond with 'yes' or 'no'. For example, queries like 'provide the latest news', 'give me recent fact checks', 'latest updates', 'what are the new articles?', 'show me recent news', or 'share the latest explainers' should receive a 'yes'."
+            f"1. Is the query asking for the latest articles, news, fact checks, explainers, updates, or general information without specifying a specific topic? Respond with 'yes' or 'no'.\n"
             f"2. Should this query use the RAG tool? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
+            f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.)? Respond with 'yes' or 'no'.\n\n"
+            f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all"
             f"Query: {query}"
         )
         
@@ -98,24 +102,173 @@ class Chatbot:
 
         # Parse decisions
         fetch_latest_articles = "yes" in response_lines[0].lower()
-        use_rag = "yes" in response_lines[1].lower() or is_fact_check  # Always use RAG for fact-check queries
-        index_to_use = "both" if is_fact_check else response_lines[2].strip()
+        use_rag = "yes" in response_lines[1].lower()
+        index_to_use = response_lines[2].strip()
+        custom_date_range = "yes" in response_lines[3].lower()
+            # Safely access the article_type
+        if len(response_lines) > 4:
+            article_type = re.sub(r'^\d+[\.\s]*', '', response_lines[4].strip()).lower()
+        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+        print(article_type)
+        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+        if custom_date_match:
+            return {
+                "fetch_latest_articles": False,
+                "use_rag": False,
+                "custom_date_range": True,
+                "index_to_use": None,
+                "response": "Query detected as custom date range, fetching articles for the specified range.",
+                "article_type": article_type 
+            }
+        
+                # If the query contains any of these keywords, mark it as a fact-check query
+        is_fact_check = any(keyword in query.lower() for keyword in fact_check_keywords)
+        print("is_fact_check", is_fact_check)
+        # Force the use of RAG for fact-check queries
+        if is_fact_check:
+            return {
+                "fetch_latest_articles": False,  # Skip fetching articles if fact-checking
+                "use_rag": True,  # Always use RAG for fact-checking queries
+                "custom_date_range": False,
+                "index_to_use": "both",  # Check both indexes for relevant data (latest and old)
+                "response": "Query detected as fact-check, using RAG tool.",
+                "article_type":article_type
 
-        print(f"Fetch latest articles: {fetch_latest_articles}")
-        print(f"Use RAG: {use_rag}, Index to use: {index_to_use}")
-
+            }
         return {
             "fetch_latest_articles": fetch_latest_articles,
             "use_rag": use_rag,
-            "index_to_use": index_to_use
+            "custom_date_range": custom_date_range,
+            "index_to_use": index_to_use,
+            "article_type": article_type 
         }
 
+    def retrieve_custom_date_articles(self, query: str, article_type: str) -> dict:
+        """
+        Retrieve articles based on custom date range specified in the query.
+        """
+        print(f"We are getting article type as {article_type}")
+        today = datetime.date.today()  # Get the current date
+        current_date_str = today.strftime('%Y-%m-%d')  # Format the current date as YYYY-MM-DD
+        date_prompt = (
+            f"Analyze the following query and extract the date range (if any):\n"
+            f"Query: {query}\n"
+            f"The current date is {current_date_str}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
+            f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
+            f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc."
+        )
+        # Get the date range from the query
+        date_response = self.llm.invoke([HumanMessage(content=date_prompt)])
+        date_range = date_response.content.strip()
+        print(date_range)
 
-    def retrieve_data(self, query: str, index_to_use: str) -> dict:
+        # Initialize variables
+        sources = []
+        start_date, end_date = None, None
+        today = datetime.date.today()
+
+        # Handle explicitly provided custom date ranges
+        custom_range_pattern = re.compile(r"from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
+        match = custom_range_pattern.search(date_range)
+        if match:
+            try:
+                start_date = datetime.datetime.strptime(match.group(1), "%Y-%m-%d").date()
+                end_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
+            except ValueError:
+                pass  # Handle invalid date formats gracefully
+
+        # Handle "last year" case
+        elif "last year" in date_range.lower():
+            last_year = today.year - 1
+            start_date = datetime.date(last_year, 12, 1)  # Start of December last year
+            end_date = datetime.date(last_year, 12, 31)  # End of December last year
+
+        # Handle "this year" case
+        elif "this year" in date_range.lower():
+            current_year = today.year
+            last_month = today.month - 1 if today.month > 1 else 12
+            year_of_last_month = current_year if last_month != 12 else current_year - 1
+            start_date = datetime.date(year_of_last_month, last_month, 1)  # Start of the last month
+            end_date = datetime.date(year_of_last_month, last_month, calendar.monthrange(year_of_last_month, last_month)[1])  # End of the last month
+
+        # Handle month-year patterns if no custom range is found
+        if not start_date or not end_date:
+            month_year_pattern = re.compile(r'(\b[A-Za-z]+\s+\d{4})\s*(to\s*(\b[A-Za-z]+\s+\d{4}))?', re.IGNORECASE)
+            match = month_year_pattern.search(query)
+            if match:
+                try:
+                    from_month_year = match.group(1)
+                    to_month_year = match.group(3) if match.group(3) else from_month_year
+                    from_date = datetime.datetime.strptime(from_month_year, "%b %Y")
+                    to_date = datetime.datetime.strptime(to_month_year, "%b %Y")
+                    start_date = datetime.date(from_date.year, from_date.month, 1)
+                    end_date = datetime.date(to_date.year, to_date.month, calendar.monthrange(to_date.year, to_date.month)[1])
+                except ValueError:
+                    pass
+
+        # Handle relative terms (today, yesterday, this week, etc.)
+        if not start_date or not end_date:
+            if "today" in date_range.lower():
+                start_date = end_date = today
+            elif "yesterday" in date_range.lower():
+                start_date = end_date = today - datetime.timedelta(days=1)
+            elif "this week" in date_range.lower():
+                start_date = today - datetime.timedelta(days=today.weekday())
+                end_date = start_date + datetime.timedelta(days=6)
+            elif "last week" in date_range.lower():
+                start_date = today - datetime.timedelta(days=today.weekday() + 7)
+                end_date = start_date + datetime.timedelta(days=6)
+            elif "this month" in date_range.lower():
+                start_date = datetime.date(today.year, today.month, 1)
+                end_date = datetime.date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+            elif "last month" in date_range.lower():
+                first_day_this_month = datetime.date(today.year, today.month, 1)
+                last_day_last_month = first_day_this_month - datetime.timedelta(days=1)
+                start_date = datetime.date(last_day_last_month.year, last_day_last_month.month, 1)
+                end_date = last_day_last_month
+            elif "last year" in date_range.lower():
+                start_date = datetime.date(today.year - 1, 12, 1)
+                end_date = datetime.date(today.year - 1, 12, 31)
+
+        # Fetch sources if valid dates are found
+        if start_date and end_date:
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
+            sources = fetch_custom_range_articles_urls(start_date_str, end_date_str)
+
+        # Prepare a fallback response if no sources are found
+        if not sources:
+            return {
+                "result": f"No articles were found for the specified date range ({date_range}). Please try refining your query.",
+                "sources": []
+            }
+        filtered_sources = []
+        if "all" in article_type:
+            filtered_sources = list(sources)
+        else:
+            for source in sources:
+                if source and f"https://www.boomlive.in/{article_type}" in source:
+                    filtered_sources.append(source) 
+
+        print(filtered_sources)
+        # Generate a summary of the articles if sources are found
+        summary_prompt = (
+            f"Summarize the information based on the following question: {query}.\n"
+            f"Use these sources to craft the response: {filtered_sources}\n"
+            f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks."
+        )
+
+        summary_response = self.llm.invoke([HumanMessage(content=summary_prompt)])
+        return {
+            "result": summary_response.content.strip(),
+            "sources": filtered_sources
+        }    
+
+    def retrieve_data(self, query: str, index_to_use: str, article_type: str) -> dict:
         """
         Enhanced retrieve_data with better context utilization
         """
-        print(f"Retrieve data called with query: {query} and index: {index_to_use}")
+        print(f"Retrieve data called with query: {query} and index: {index_to_use} with article_type: {article_type}")
         
         current_date = get_current_date()
         print(current_date)
@@ -178,10 +331,17 @@ class Chatbot:
 
             # Clean up duplicates from sources
             unique_sources = list(dict.fromkeys(all_sources))
+            filtered_sources = []
+            if "all" in article_type:
+                filtered_sources = unique_sources
+            else:
+                for source in unique_sources:
+                    if source and  f"https://www.boomlive.in/{article_type}" in source:
+                        filtered_sources.append(source)
 
             return {
                 "result": result_text,
-                "sources": unique_sources
+                "sources": filtered_sources
             }
         else:
             print(f"No relevant documents found for query: {query}")  # Debugging line
@@ -214,24 +374,41 @@ class Chatbot:
 
         fetch_latest_articles = mediation_result["fetch_latest_articles"]
         use_rag = mediation_result["use_rag"]
+        custom_date_range = mediation_result["custom_date_range"]
+
         index_to_use = mediation_result["index_to_use"]
+        if custom_date_range:
+            article_type = mediation_result["article_type"]
+            custom_date_result = self.retrieve_custom_date_articles(query, article_type)
+            result_text = custom_date_result['result']
+            sources = custom_date_result['sources']
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\nNo sources available."
+
+            return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
         if fetch_latest_articles:
             # Fetch latest article URLs
-            latest_urls = fetch_latest_article_urls(query)
-            print("latest_urls", fetch_latest_article_urls(query))
+            article_type = mediation_result["article_type"]
+            print(f"fetched article type in latest articles {article_type}")
+            latest_urls = fetch_latest_article_urls(query,article_type)
+            print("latest_urls", latest_urls)
             # Format response with the fetched URLs as sources
             response_text = (
-                "Here are the latest articles:\n"
+                f"Here are {article_type} latest articles:\n"
                 + "\n".join(latest_urls)  # Use the fetched URLs as sources
             )
             return {"messages": [AIMessage(content=response_text)]}
 
         if use_rag or index_to_use is None:
             print("isme ja hi nahi rAHA HAI:  if use_rag or index_to_use == None: ")
+            article_type = mediation_result["article_type"]
+            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+            print(article_type, "retrieve data ")
+            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+
             # Retrieve data using RAG
             index_to_use = "both"
-            rag_result = self.retrieve_data(query, index_to_use)
+            rag_result = self.retrieve_data(query, index_to_use, article_type)
             result_text = rag_result['result']
             sources = rag_result['sources']
             

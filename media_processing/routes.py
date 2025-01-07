@@ -6,7 +6,7 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 import os
 from media_processing.tools.automate_input_processing import detect_and_process_file, detect_and_process_json
 from bs4 import BeautifulSoup
-
+import requests
 media_processing_bp = Blueprint('media_processing', __name__)
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'mp3', 'wav', 'jpg', 'jpeg', 'png'}
 # Helper function to check for allowed file extensions
