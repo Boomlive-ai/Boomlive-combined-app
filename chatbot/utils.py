@@ -198,8 +198,9 @@ def fetch_latest_article_urls(query, article_type):
             for news_item in data.get("news", []):
                 url_path = news_item.get("url")
                 
-                # Ensure exact keyword matching in URL segments
-                if url_path and  f"https://www.boomlive.in/{article_type}" in url_path:
+                if article_type == "all":
+                    urls.append(url_path)  # Include all URLs
+                elif url_path and f"https://www.boomlive.in/{article_type}" in url_path:
                     urls.append(url_path)
 
     except requests.exceptions.RequestException as e:

@@ -71,16 +71,16 @@ class Chatbot:
         article_type = "all"  # Default to 'all' if no specific article type is provided
         
         # Check if the query is too short or contains random gibberish
-        if len(query.strip()) < 3 or not re.match(r'[A-Za-z0-9\s,.\'-]+$', query):
-            return {
-                "fetch_latest_articles": False,
-                "use_rag": False,
-                "custom_date_range": False,
-                "index_to_use": None,
-                "response": "Please provide a more specific query.",
-                "article_type":article_type
-            }
-        print(f"Mediator called with query: {query}")
+        # if len(query.strip()) < 3 or not re.match(r'[A-Za-z0-9\s,.\'-]+$', query):
+        #     return {
+        #         "fetch_latest_articles": False,
+        #         "use_rag": False,
+        #         "custom_date_range": False,
+        #         "index_to_use": None,
+        #         "response": "Please provide a more specific query.",
+        #         "article_type":article_type
+        #     }
+        # print(f"Mediator called with query: {query}")
   # Check for custom date range
         date_pattern = re.compile(
             r'(\bfrom\s+\d{4}-\d{2}-\d{2}\b.*?to\s+\d{4}-\d{2}-\d{2}\b)|'
@@ -100,7 +100,7 @@ class Chatbot:
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
-            f"1. Is the query asking for the latest articles, news, fact checks, explainers, updates, or general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.\n"
+            f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.\n"
             f"2. Should this query use the RAG tool and  if user is asking any question or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
