@@ -17,7 +17,7 @@ from langgraph.prebuilt import ToolNode
 from chatbot.utils import fetch_latest_article_urls, get_current_date, fetch_custom_range_articles_urls
 from langchain_openai import ChatOpenAI
 import calendar
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -50,6 +50,7 @@ class Chatbot:
                     "Website: [BoomLive](https://boomlive.in/). "
                     "Ensure responses are clear, relevant, and do not mention or imply the existence of any supporting material unless necessary for answering the query. "
                     f"Note: Today's date is {current_date}."
+                    f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
                 )
         )
         # External API for latest articles
@@ -159,15 +160,15 @@ class Chatbot:
         Retrieve articles based on custom date range specified in the query.
         """
         print(f"We are getting article type as {article_type}")
-        today = datetime.date.today()  # Get the current date
-        current_date_str = today.strftime('%Y-%m-%d')  # Format the current date as YYYY-MM-DD
+          # Get the current date
+        current_date = datetime.now().strftime("%B %d, %Y")  # Format the current date as YYYY-MM-DD
         date_prompt = (
             f"Analyze the following query and extract the date range (if any):\n"
             f"Query: {query}\n"
-            f"The current date is {current_date_str}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
+            f"The current date is {current_date}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
             f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
             f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc."
-            f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
+            
         )
         # Get the date range from the query
         date_response = self.llm.invoke([self.system_message, HumanMessage(content=date_prompt)])
@@ -177,31 +178,32 @@ class Chatbot:
         # Initialize variables
         sources = []
         start_date, end_date = None, None
-        today = datetime.date.today()
+        today = date.today()
 
         # Handle explicitly provided custom date ranges
         custom_range_pattern = re.compile(r"from\s+(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})", re.IGNORECASE)
         match = custom_range_pattern.search(date_range)
         if match:
             try:
-                start_date = datetime.datetime.strptime(match.group(1), "%Y-%m-%d").date()
-                end_date = datetime.datetime.strptime(match.group(2), "%Y-%m-%d").date()
+                start_date = datetime.strptime(match.group(1), "%Y-%m-%d").date()
+                end_date = datetime.strptime(match.group(2), "%Y-%m-%d").date()
             except ValueError:
                 pass  # Handle invalid date formats gracefully
 
         # Handle "last year" case
         elif "last year" in date_range.lower():
             last_year = today.year - 1
-            start_date = datetime.date(last_year, 12, 1)  # Start of December last year
-            end_date = datetime.date(last_year, 12, 31)  # End of December last year
+            start_date = date(last_year, 12, 1)  # ✅ Correct
+            end_date = date(last_year, 12, 31)  # ✅ Correct
+  # End of December last year
 
         # Handle "this year" case
         elif "this year" in date_range.lower():
             current_year = today.year
             last_month = today.month - 1 if today.month > 1 else 12
             year_of_last_month = current_year if last_month != 12 else current_year - 1
-            start_date = datetime.date(year_of_last_month, last_month, 1)  # Start of the last month
-            end_date = datetime.date(year_of_last_month, last_month, calendar.monthrange(year_of_last_month, last_month)[1])  # End of the last month
+            start_date = date(year_of_last_month, last_month, 1)  # Start of the last month
+            end_date = date(year_of_last_month, last_month, calendar.monthrange(year_of_last_month, last_month)[1])  # End of the last month
 
         # Handle month-year patterns if no custom range is found
         if not start_date or not end_date:
@@ -211,10 +213,10 @@ class Chatbot:
                 try:
                     from_month_year = match.group(1)
                     to_month_year = match.group(3) if match.group(3) else from_month_year
-                    from_date = datetime.datetime.strptime(from_month_year, "%b %Y")
-                    to_date = datetime.datetime.strptime(to_month_year, "%b %Y")
-                    start_date = datetime.date(from_date.year, from_date.month, 1)
-                    end_date = datetime.date(to_date.year, to_date.month, calendar.monthrange(to_date.year, to_date.month)[1])
+                    from_date = datetime.strptime(from_month_year, "%b %Y")
+                    to_date = datetime.strptime(to_month_year, "%b %Y")
+                    start_date = date(from_date.year, from_date.month, 1)
+                    end_date = date(to_date.year, to_date.month, calendar.monthrange(to_date.year, to_date.month)[1])
                 except ValueError:
                     pass
 
@@ -223,24 +225,24 @@ class Chatbot:
             if "today" in date_range.lower():
                 start_date = end_date = today
             elif "yesterday" in date_range.lower():
-                start_date = end_date = today - datetime.timedelta(days=1)
+                start_date = end_date = today - timedelta(days=1)
             elif "this week" in date_range.lower():
-                start_date = today - datetime.timedelta(days=today.weekday())
-                end_date = start_date + datetime.timedelta(days=6)
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
             elif "last week" in date_range.lower():
-                start_date = today - datetime.timedelta(days=today.weekday() + 7)
-                end_date = start_date + datetime.timedelta(days=6)
+                start_date = today - timedelta(days=today.weekday() + 7)
+                end_date = start_date + timedelta(days=6)
             elif "this month" in date_range.lower():
-                start_date = datetime.date(today.year, today.month, 1)
-                end_date = datetime.date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+                start_date = date(today.year, today.month, 1)
+                end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
             elif "last month" in date_range.lower():
-                first_day_this_month = datetime.date(today.year, today.month, 1)
-                last_day_last_month = first_day_this_month - datetime.timedelta(days=1)
-                start_date = datetime.date(last_day_last_month.year, last_day_last_month.month, 1)
+                first_day_this_month = date(today.year, today.month, 1)
+                last_day_last_month = first_day_this_month - timedelta(days=1)
+                start_date = date(last_day_last_month.year, last_day_last_month.month, 1)
                 end_date = last_day_last_month
             elif "last year" in date_range.lower():
-                start_date = datetime.date(today.year - 1, 12, 1)
-                end_date = datetime.date(today.year - 1, 12, 31)
+                start_date = date(today.year - 1, 12, 1)
+                end_date = date(today.year - 1, 12, 31)
 
         # Fetch sources if valid dates are found
         if start_date and end_date:
