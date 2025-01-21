@@ -24,7 +24,7 @@ app.register_blueprint(media_processing_bp, url_prefix='/media')
 
 @app.route('/')
 def index():
-    return {"message": "Welcome to the Boom app!"}
+    return {"message": "Welcome to the Boomlive!"}
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
