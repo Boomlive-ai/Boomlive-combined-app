@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_pinecone import PineconeVectorStore
 from langchain.chains.retrieval_qa.base import RetrievalQA
 from langchain_core.tools import StructuredTool
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
@@ -17,6 +17,8 @@ from langgraph.prebuilt import ToolNode
 from chatbot.utils import fetch_latest_article_urls, get_current_date, fetch_custom_range_articles_urls
 from langchain_openai import ChatOpenAI
 import calendar
+from datetime import datetime
+
 # Load environment variables
 load_dotenv()
 
@@ -39,7 +41,17 @@ class Chatbot:
             index_name=os.getenv("PINECONE_OLD_INDEX_NAME"),
             embedding=OpenAIEmbeddings(model="text-embedding-3-small")
         )
-
+        current_date = datetime.now().strftime("%B %d, %Y")
+        self.system_message = SystemMessage(
+            content=(
+                    "You are BoomLive AI, an expert chatbot designed to answer questions related to BoomLive's fact-checks, articles, reports, and data analysis. "
+                    "Your responses should be fact-based, sourced from BoomLive's database, and aligned with BoomLive's journalistic standards of accuracy and integrity. "
+                    "Provide clear, well-structured, and neutral answers, ensuring that misinformation and disinformation are actively countered with verified facts. "
+                    "Website: [BoomLive](https://boomlive.in/). "
+                    "Ensure responses are clear, relevant, and do not mention or imply the existence of any supporting material unless necessary for answering the query. "
+                    f"Note: Today's date is {current_date}."
+                )
+        )
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
 
@@ -155,9 +167,10 @@ class Chatbot:
             f"The current date is {current_date_str}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
             f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
             f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc."
+            f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
         )
         # Get the date range from the query
-        date_response = self.llm.invoke([HumanMessage(content=date_prompt)])
+        date_response = self.llm.invoke([self.system_message, HumanMessage(content=date_prompt)])
         date_range = date_response.content.strip()
         print(date_range)
 
@@ -257,7 +270,7 @@ class Chatbot:
             f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks."
         )
 
-        summary_response = self.llm.invoke([HumanMessage(content=summary_prompt)])
+        summary_response = self.llm.invoke([self.system_message,HumanMessage(content=summary_prompt)])
         return {
             "result": summary_response.content.strip(),
             "sources": filtered_sources
@@ -325,7 +338,7 @@ class Chatbot:
             if not is_date_filtered:
                 synthesis_prompt = synthesis_prompt.replace("Avoids any unnecessary reference to timeframes, dates, or specific years", "Does not mention any timeframes or dates")
 
-            response = self.llm.invoke([HumanMessage(content=synthesis_prompt)])
+            response = self.llm.invoke([self.system_message, HumanMessage(content=synthesis_prompt)])
             result_text = response.content
 
             # Clean up duplicates from sources
@@ -428,7 +441,7 @@ class Chatbot:
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
         # Default LLM response
-        response = self.llm_with_tool.invoke(messages)
+        response = self.llm_with_tool.invoke([self.system_message] + messages)
         return {"messages": [AIMessage(content=response.content)]}
 
     def router_function(self, state: MessagesState) -> Literal["tools", END]:
