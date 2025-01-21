@@ -79,8 +79,7 @@ class Chatbot:
 
         # Check if query is related to fact-checking
         fact_check_keywords = [
-            'misrepresents', 'insult', 'use influencers', 'staged', 'real', 'fact-check', 'verify',
-            'factcheck', 'true or false', 'edited', 'was', 'has', 'did', 'who', 'what', 'is', 'deceptive',
+            'misrepresents', 'insult', 'use influencers', 'staged', 'real', 'verify', 'true or false', 'edited', 'was', 'has', 'did', 'who', 'what', 'is', 'deceptive',
             'false claim', 'incorrect', 'misleading', 'manipulated', 'spliced', 'fake', 'inaccurate', 'disinformation'
         ]
         
@@ -89,10 +88,10 @@ class Chatbot:
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
-            f"1. Is the query asking for the latest articles, news, fact checks, explainers, updates, or general information without specifying a specific topic? Respond with 'yes' or 'no'.\n"
-            f"2. Should this query use the RAG tool? Respond with 'yes' or 'no'.\n"
+            f"1. Is the query asking for the latest articles, news, fact checks, explainers, updates, or general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.\n"
+            f"2. Should this query use the RAG tool and  if user is asking any question or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
-            f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.)? Respond with 'yes' or 'no'.\n\n"
+            f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
             f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all"
             f"Query: {query}"
         )
@@ -317,7 +316,7 @@ class Chatbot:
             synthesis_prompt = f"""
             Based on the following content, provide a breif and short response as a Boom Chatbot: {query}
             The current date is {current_date}.
-
+            Sources: {all_sources}
             Context:
             {combined_content}
             """
@@ -338,7 +337,7 @@ class Chatbot:
                 for source in unique_sources:
                     if source and  f"https://www.boomlive.in/{article_type}" in source:
                         filtered_sources.append(source)
-
+            print({"sources": all_sources})
             return {
                 "result": result_text,
                 "sources": filtered_sources
@@ -390,14 +389,25 @@ class Chatbot:
             # Fetch latest article URLs
             article_type = mediation_result["article_type"]
             print(f"fetched article type in latest articles {article_type}")
-            latest_urls = fetch_latest_article_urls(query,article_type)
+            latest_urls = fetch_latest_article_urls(query, article_type)
             print("latest_urls", latest_urls)
-            # Format response with the fetched URLs as sources
-            response_text = (
-                f"Here are {article_type} latest articles:\n"
-                + "\n".join(latest_urls)  # Use the fetched URLs as sources
-            )
+
+            # Determine article type string
+            article_type_text = f"{article_type} " if article_type.lower() != "all" else ""
+
+            # Check if latest_urls is empty
+            if latest_urls:
+                # Format response with the fetched URLs as sources
+                response_text = (
+                    f"Here are the latest {article_type_text}articles:\n"
+                    + "\n".join(latest_urls)  # Use the fetched URLs as sources
+                )
+            else:
+                # Different response when no articles are found
+                response_text = f"Sorry, I couldn't find any recent {article_type_text}articles."
+
             return {"messages": [AIMessage(content=response_text)]}
+
 
         if use_rag or index_to_use is None:
             print("isme ja hi nahi rAHA HAI:  if use_rag or index_to_use == None: ")
