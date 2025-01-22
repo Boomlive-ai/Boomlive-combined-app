@@ -3,7 +3,10 @@ FROM python:3.12
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=app.py \
+    FLASK_RUN_HOST=0.0.0.0 \
+    FLASK_RUN_PORT=5000
 
 # Set the working directory
 WORKDIR /app
@@ -41,4 +44,4 @@ COPY . /app
 EXPOSE 5000
 
 # Command to run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["flask", "run"]
