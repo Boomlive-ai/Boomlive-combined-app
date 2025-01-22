@@ -167,7 +167,7 @@ class Chatbot:
             f"Query: {query}\n"
             f"The current date is {current_date}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
             f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
-            f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc."
+            f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc. And note range shouldn't exceed 1 month so adjust range which suits user requirements better but just provide 1 month range"
             
         )
         # Get the date range from the query
@@ -261,10 +261,15 @@ class Chatbot:
             filtered_sources = list(sources)
         else:
             for source in sources:
+                print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+                print(source)
+                print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
                 if source and f"https://www.boomlive.in/{article_type}" in source:
                     filtered_sources.append(source) 
 
-        print(filtered_sources)
+        if not filtered_sources:
+            filtered_sources = list(sources[:10])
         # Generate a summary of the articles if sources are found
         summary_prompt = (
             f"Summarize the information based on the following question: {query}.\n"
