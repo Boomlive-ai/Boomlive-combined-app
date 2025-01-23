@@ -8,7 +8,7 @@ llm  = genai.GenerativeModel('gemini-1.5-pro-latest')
 
 def image_ocr(img):
     response = llm.generate_content([
-        "what is the text in this image?", 
+        "what is the claim of text in this image?", 
         img
     ])
 
