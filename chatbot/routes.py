@@ -43,7 +43,7 @@ def query_bot():
         print("response['messages'][-1]",result)
         result,raw_sources  = extract_sources_and_result(result)
 
-        sources = prioritize_sources(result, raw_sources)
+        sources = prioritize_sources(question, raw_sources)
         if not result:
             result = "No response generated. Please try again."
         return jsonify({"response": result, "sources": sources})
