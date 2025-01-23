@@ -25,12 +25,12 @@ def detect_and_process_file(file, file_path):
             duration = video_clip.duration
             transcript = process_video_file(file_path).text
             video_clip.close()
-            return jsonify({"filename": file.filename, "duration": duration, "transcript": transcript}), 200
+            return jsonify({"filename": file.filename, "duration": duration, "text": transcript}), 200
 
         elif extension in {'mp3', 'wav'}:
             # Process audio
             transcript = process_audio_file(file_path)
-            return jsonify({"filename": file.filename, "transcript": transcript}), 200
+            return jsonify({"filename": file.filename, "text": transcript}), 200
 
         elif extension in {'jpg', 'jpeg', 'png', 'webp'}:
             # Process image
