@@ -271,13 +271,22 @@ class Chatbot:
         if not filtered_sources:
             filtered_sources = list(sources[:10])
         # Generate a summary of the articles if sources are found
+        # summary_prompt = (
+        #     f"Summarize the information based on the following question: {query}.\n"
+        #     f"Use these sources to craft the response: {filtered_sources}\n"
+        #     f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks."
+        #     f"Provide article url for each article below their summary: {filtered_sources}"
+        # )
         summary_prompt = (
             f"Summarize the information based on the following question: {query}.\n"
             f"Use these sources to craft the response: {filtered_sources}\n"
-            f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks."
+            f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks.\n\n"
+            f"For each summary, list the original article URL explicitly under the summary.\n"
+            f"Format: \n[Your summary here and its article url]\n\n"
         )
 
         summary_response = self.llm.invoke([self.system_message,HumanMessage(content=summary_prompt)])
+        print(summary_response.content.strip())
         return {
             "result": summary_response.content.strip(),
             "sources": filtered_sources
@@ -419,7 +428,7 @@ class Chatbot:
             if latest_urls:
                 # Format response with the fetched URLs as sources
                 response_text = (
-                    f"Here are the latest {article_type_text}articles:\n"
+                    f"Here are the latest {article_type_text} articles:\n"
                     + "\n".join(latest_urls)  # Use the fetched URLs as sources
                 )
             else:

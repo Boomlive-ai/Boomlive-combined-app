@@ -67,35 +67,33 @@ import re
 
 def extract_sources_and_result(result: str):
     """
-    Extracts URLs from the given result string and returns the result without sources.
+    Extracts source URLs from the "Sources:" section and returns the result without that section.
 
     Args:
-        result (str): The response content containing the sources.
+        result (str): The response content containing Markdown links and a "Sources:" section.
 
     Returns:
         tuple: A tuple with two elements:
-            1. result_without_sources (str): The content without the sources part.
-            2. sources (list): A list of source URLs extracted from the result.
+            1. result_without_sources (str): The content without the "Sources:" section.
+            2. sources (list): A list of extracted URLs from the "Sources:" section.
     """
-    # Use regular expression to find all URLs in the result string
-    sources = re.findall(r'https?://[^\s]+', result)
+    # Detect all Markdown links (we will NOT remove these)
+    markdown_links = re.findall(r'\[([^\]]+)\]\((https?://[^\s\)]+)\)', result)
+    markdown_urls = {url for _, url in markdown_links}  # Extract just the URLs from Markdown links
+
+    # Extract sources from the "Sources:" section at the end
+    sources_match = re.search(r'\n*Sources:\n(.*)', result, flags=re.DOTALL)
+    sources = []
     
-    # Remove all URLs from the result string
-    result_without_sources = re.sub(r'https?://[^\s]+', '', result).strip()
+    if sources_match:
+        sources_section = sources_match.group(1)
+        sources = re.findall(r'https?://[^\s]+', sources_section)  # Extract only URLs from the sources section
 
-    # Remove the "Sources" section and anything after it
-    result_without_sources = re.sub(r'(Sources?:|References?:|See also:|Source:).*', '', result_without_sources).strip()
+        # Remove only the "Sources:" section
+        result = re.sub(r'\n*Sources:\n.*', '', result, flags=re.DOTALL).strip()
 
-    # Remove any other potential sources-related headers (like "Related Articles", etc.)
-    result_without_sources = re.sub(r'\s*(Sources?|References?|See also?):.*', '', result_without_sources).strip()
+    return result, sources
 
-    # Remove leading or trailing whitespace after the replacement
-    result_without_sources = result_without_sources.strip()
-
-    # Remove duplicates from sources
-    sources = list(set(sources))
-
-    return result_without_sources, sources
 
 
 
