@@ -282,7 +282,7 @@ class Chatbot:
             f"Use these sources to craft the response: {filtered_sources}\n"
             f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks.\n\n"
             f"For each summary, list the original article URL explicitly under the summary.\n"
-            f"Format: \n[Your summary here and its article url]\n\n"
+            f"Format: \[Your summary here]\n[Read more](Original article URL here)\n"
         )
 
         summary_response = self.llm.invoke([self.system_message,HumanMessage(content=summary_prompt)])
