@@ -1,5 +1,5 @@
 from PIL import Image
-# import pytesseract
+import pytesseract
 import os
 from media_processing.utils import image_ocr
 # # Ensure pytesseract can find the Tesseract executable (if not in PATH)
@@ -21,11 +21,11 @@ def extract_text_from_image(file_path: str) -> dict:
         # Open the image file using Pillow
         with Image.open(file_path) as img:
             # Optional: Preprocess image for better OCR (e.g., convert to grayscale)
-            # img = img.convert("L")  # Uncomment if needed
+            img = img.convert("L")  # Uncomment if needed
             
             # Extract text using pytesseract
-            # extracted_text = pytesseract.image_to_string(img)
-            extracted_text = image_ocr(img)
+            extracted_text = pytesseract.image_to_string(img)
+            # extracted_text = image_ocr(img)
 
             # Return the result
             return {"text": extracted_text}

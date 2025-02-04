@@ -33,6 +33,9 @@
     RapidFuzz==3.11.0
     Levenshtein==0.26.1
 
+    # OCR Libraries
+    pytesseract==0.3.13
+    
     # Data Processing
     # numpy==2.2.1
     pandas
