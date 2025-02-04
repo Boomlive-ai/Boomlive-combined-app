@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpng-dev \
         tesseract-ocr \
         tesseract-ocr-eng \
+        ffmpeg \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies

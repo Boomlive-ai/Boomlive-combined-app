@@ -16,7 +16,7 @@ def process_video_file(video_path, seconds_per_frame=2):
 
     video = cv2.VideoCapture(video_path)
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"totoal frames {total_frames}")
+    print(f"total frames {total_frames}")
     fps = video.get(cv2.CAP_PROP_FPS)
     frames_to_skip = int(fps * seconds_per_frame)
     curr_frame=0
