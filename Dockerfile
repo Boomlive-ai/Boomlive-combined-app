@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set the working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and Tesseract OCR
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
@@ -25,6 +25,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zlib1g-dev \
         libjpeg-dev \
         libpng-dev \
+        tesseract-ocr \
+        tesseract-ocr-eng \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
