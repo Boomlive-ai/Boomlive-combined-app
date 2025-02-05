@@ -28,7 +28,7 @@ def extract_text_from_image(file_path: str) -> dict:
             # extracted_text = image_ocr(img)
 
             # Return the result
-            return {"text": extracted_text}
+            return extracted_text
     except Exception as e:
         # Handle errors (e.g., invalid image file)
         return {"error": f"Failed to process image: {str(e)}"}
