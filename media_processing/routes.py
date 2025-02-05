@@ -7,8 +7,9 @@ import os
 from media_processing.tools.automate_input_processing import detect_and_process_file, detect_and_process_json
 from bs4 import BeautifulSoup
 import requests
+from werkzeug.utils import secure_filename
 media_processing_bp = Blueprint('media_processing', __name__)
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'mp3', 'wav', 'jpg', 'jpeg', 'png'}
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'mp3', 'wav', 'jpg', 'jpeg', 'png', 'webp'}
 # Helper function to check for allowed file extensions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -227,6 +228,46 @@ def scrape_url():
         return jsonify({"error": f"Failed to scrape URL: {str(e)}"}), 500
     
 
+# @media_processing_bp.route('/process_input', methods=['POST'])
+# def process_input():
+#     if request.content_type.startswith('multipart/form-data'):
+#         # File input
+#         if 'file' not in request.files:
+#             return jsonify({"error": "No file part in the request"}), 400
+
+#         file = request.files['file']
+#         if file.filename == '':
+#             return jsonify({"error": "No file selected"}), 400
+
+#         if file and allowed_file(file.filename):
+#             file_path = os.path.join('uploads', file.filename)
+#             file.save(file_path)
+
+#              # Check if the file is a .webp image
+#             if file.filename.lower().endswith(".webp"):
+#                 try:
+#                     from PIL import Image
+#                     # Convert .webp to .png
+#                     with Image.open(file_path) as img:
+#                         converted_file_path = os.path.splitext(file_path)[0] + ".png"
+#                         img.save(converted_file_path, "PNG")
+#                     os.remove(file_path)  # Remove the original .webp file
+#                     file_path = converted_file_path  # Update the file path for processing
+#                 except Exception as e:
+#                     return jsonify({"error": f"Failed to process .webp file: {str(e)}"}), 500
+#             return detect_and_process_file(file, file_path)
+#         else:
+#             return jsonify({"error": "Invalid file type"}), 400
+
+#     elif request.content_type == 'application/json':
+#         # JSON input
+#         data = request.get_json()
+#         return detect_and_process_json(data)
+
+#     else:
+#         return jsonify({"error": "Unsupported Content-Type"}), 415
+
+
 @media_processing_bp.route('/process_input', methods=['POST'])
 def process_input():
     if request.content_type.startswith('multipart/form-data'):
@@ -239,22 +280,32 @@ def process_input():
             return jsonify({"error": "No file selected"}), 400
 
         if file and allowed_file(file.filename):
-            file_path = os.path.join('uploads', file.filename)
-            file.save(file_path)
-
-             # Check if the file is a .webp image
-            if file.filename.lower().endswith(".webp"):
-                try:
-                    from PIL import Image
-                    # Convert .webp to .png
-                    with Image.open(file_path) as img:
-                        converted_file_path = os.path.splitext(file_path)[0] + ".png"
-                        img.save(converted_file_path, "PNG")
-                    os.remove(file_path)  # Remove the original .webp file
-                    file_path = converted_file_path  # Update the file path for processing
-                except Exception as e:
-                    return jsonify({"error": f"Failed to process .webp file: {str(e)}"}), 500
-            return detect_and_process_file(file, file_path)
+            try:
+                # Generate a unique filename to avoid overwrites
+                filename = secure_filename(file.filename)
+                file_path = os.path.join('uploads', filename)
+                
+                # Ensure uploads directory exists
+                os.makedirs('uploads', exist_ok=True)
+                
+                # Save the uploaded file
+                file.save(file_path)
+                
+                # Process the file - no need for separate WebP handling here
+                # as it's now handled in extract_text_from_image
+                result = detect_and_process_file(file, file_path)
+                
+                # Clean up the uploaded file after processing
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    
+                return result
+                
+            except Exception as e:
+                # Clean up any files if there's an error
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                return jsonify({"error": f"Failed to process file: {str(e)}"}), 500
         else:
             return jsonify({"error": "Invalid file type"}), 400
 
