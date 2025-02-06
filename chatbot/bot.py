@@ -410,7 +410,7 @@ class Chatbot:
             custom_date_result = self.retrieve_custom_date_articles(query, article_type)
             result_text = custom_date_result['result']
             sources = custom_date_result['sources']
-            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\nNo sources available."
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
 
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
@@ -429,8 +429,10 @@ class Chatbot:
                 # Format response with the fetched URLs as sources
                 response_text = (
                     f"Here are the latest {article_type_text} articles:\n"
-                    + "\n".join(latest_urls)  # Use the fetched URLs as sources
+                    +  "\n\nSources:\n" + "\n".join(latest_urls)  # Use the fetched URLs as sources
                 )
+
+                ## I have to add the code here for llm call to process latest urls properly
             else:
                 # Different response when no articles are found
                 response_text = f"Sorry, I couldn't find any recent {article_type_text}articles."
