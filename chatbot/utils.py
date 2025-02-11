@@ -5,32 +5,90 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 def prioritize_sources(response_text: str, sources: list) -> list:
     """
-    Reorder sources based on similarity to the response text.
-
+    Reorder sources based on URL ID numbers as primary factor and content similarity as secondary factor.
+    
     Args:
-        response_text (str): The generated response content.
-        sources (list): List of source URLs to prioritize.
-
+        response_text (str): The generated response content
+        sources (list): List of source URLs to prioritize
+        
     Returns:
-        list: Reordered list of sources with the most relevant one at the top.
+        list: Reordered list of sources with priority based on ID and relevance
     """
-    # If no response text or sources, return sources as is
     if not response_text or not sources:
         return sources
-
-    # Combine response text and sources for comparison
-    texts = [response_text] + sources  # Place response first
-    vectorizer = TfidfVectorizer(stop_words="english")  # Use TF-IDF to vectorize
+    
+    # Group sources by ID numbers
+    def extract_id(url):
+        try:
+            return int(url.rstrip('/').split('-')[-1])
+        except (ValueError, IndexError):
+            return 0
+    
+    # Create groups based on ID ranges (e.g., every 5000 IDs)
+    id_groups = {}
+    for source in sources:
+        id_num = extract_id(source)
+        group_key = id_num // 5000  # Group by ranges of 5000
+        if group_key not in id_groups:
+            id_groups[group_key] = []
+        id_groups[group_key].append(source)
+    
+    # Calculate content similarity scores
+    vectorizer = TfidfVectorizer(stop_words="english")
+    texts = [response_text] + sources
     tfidf_matrix = vectorizer.fit_transform(texts)
-
-    # Calculate cosine similarity between response_text and each source
     similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    
+    # Sort within each group by similarity
+    final_sorted_sources = []
+    for group_key in sorted(id_groups.keys(), reverse=True):  # Process groups from newest to oldest
+        group_sources = id_groups[group_key]
+        group_indices = [sources.index(s) for s in group_sources]
+        group_similarities = [similarities[i] for i in group_indices]
+        
+        # Sort sources within group by similarity
+        sorted_group = [x for _, x in sorted(
+            zip(group_similarities, group_sources),
+            key=lambda pair: pair[0],
+            reverse=True
+        )]
+        
+        final_sorted_sources.extend(sorted_group)
+    
+    return final_sorted_sources
 
-    # Sort sources by similarity scores in descending order
-    sorted_indices = sorted(range(len(sources)), key=lambda i: similarities[i], reverse=True)
-    sorted_sources = [sources[i] for i in sorted_indices]
+# def prioritize_sources(response_text: str, sources: list) -> list:
+#     """
+#     Reorder sources based on similarity to the response text.
 
-    return sorted_sources
+#     Args:
+#         response_text (str): The generated response content.
+#         sources (list): List of source URLs to prioritize.
+
+#     Returns:
+#         list: Reordered list of sources with the most relevant one at the top.
+#     """
+#     print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+#     print(sources)
+#     print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+
+#     # If no response text or sources, return sources as is
+#     if not response_text or not sources:
+#         return sources
+
+#     # Combine response text and sources for comparison
+#     texts = [response_text] + sources  # Place response first
+#     vectorizer = TfidfVectorizer(stop_words="english")  # Use TF-IDF to vectorize
+#     tfidf_matrix = vectorizer.fit_transform(texts)
+
+#     # Calculate cosine similarity between response_text and each source
+#     similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+
+#     # Sort sources by similarity scores in descending order
+#     sorted_indices = sorted(range(len(sources)), key=lambda i: similarities[i], reverse=True)
+#     sorted_sources = [sources[i] for i in sorted_indices]
+
+#     return sorted_sources
 
 
 

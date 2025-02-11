@@ -101,7 +101,7 @@ class Chatbot:
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
-            f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.\n"
+            f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.Note if the query is about any specific recent topic then respond with 'no'\n"
             f"2. Should this query use the RAG tool and  if user is asking any question or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
@@ -291,7 +291,82 @@ class Chatbot:
             "result": summary_response.content.strip(),
             "sources": filtered_sources
         }    
+    def refine_query_for_vector_search(self, query: str, context_type: str = "all") -> dict:
+        """
+        Enhanced query refinement using LLM for better vector search results.
+        
+        Args:
+            query (str): Original user query
+            context_type (str): Type of content to search (fact-check, article, etc.)
+            
+        Returns:
+            dict: Refined query information including main query and search parameters
+        """
+        # Create a prompt that helps LLM understand boomlive's context
+        refinement_prompt = f"""
+        As an AI specializing in BoomLive's content, help optimize this query for vector search.
+        Original query: "{query}"
+        Context type: {context_type}
 
+        Consider these aspects:
+        1. BoomLive's focus on fact-checking and journalism
+        2. Common misinformation patterns
+        3. Current affairs and news context
+        4. Regional Indian context when relevant
+
+        Please analyze and provide:
+        1. A refined main query optimized for semantic search
+        2. Key terms that should be emphasized
+        3. Relevant categories or topics
+        4. Any temporal context (time-based relevance)
+        5. Suggested filters (if any)
+
+        Format your response as:
+        REFINED_QUERY: <refined version>
+        KEY_TERMS: <comma-separated key terms>
+        CATEGORIES: <relevant categories>
+        TEMPORAL: <time relevance>
+        FILTERS: <suggested filters>
+        """
+        
+        # Get LLM's refinement suggestions
+        response = self.llm.invoke([
+            self.system_message,
+            HumanMessage(content=refinement_prompt)
+        ])
+        
+        # Parse LLM response
+        refinement_results = {}
+        current_key = None
+        for line in response.content.split('\n'):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                key = key.strip()
+                value = value.strip()
+                refinement_results[key] = value
+        
+        # Extract and clean keywords from the refined query
+        cleaned_query = self.extract_keywords(refinement_results.get('REFINED_QUERY', query))
+        
+        # Add domain-specific terms
+        key_terms = [term.strip() for term in refinement_results.get('KEY_TERMS', '').split(',')]
+        key_terms = [term for term in key_terms if term]  # Remove empty terms
+        
+        # Combine original keywords with domain-specific terms
+        enhanced_query = f"{cleaned_query} {' '.join(key_terms)}"
+        
+        # Structure search parameters
+        search_params = {
+            "original_query": query,
+            "enhanced_query": enhanced_query.strip(),
+            "key_terms": key_terms,
+            "categories": refinement_results.get('CATEGORIES', '').split(','),
+            "temporal_context": refinement_results.get('TEMPORAL', 'not specified'),
+            "suggested_filters": refinement_results.get('FILTERS', '').split(','),
+        }
+        
+        # Apply the enhanced query in your retrieve_data method
+        return search_params
     def retrieve_data(self, query: str, index_to_use: str, article_type: str) -> dict:
         """
         Enhanced retrieve_data with better context utilization
@@ -300,10 +375,14 @@ class Chatbot:
         
         current_date = get_current_date()
         print(current_date)
+        # Refine the query using LLM
+        refined_params = self.refine_query_for_vector_search(query, article_type)
+        enhanced_query = refined_params["enhanced_query"]
         refined_query = self.extract_keywords(query)
         all_docs = []
         all_sources = []
         print("refined_query", refined_query)
+        print("enhanced_query", enhanced_query)
         # Determine if the query mentions dates or the latest content
         is_date_filtered = "latest" in query.lower() or "date" in query.lower()  # Check if the query mentions date or "latest"
         print("index_to_use",index_to_use)
@@ -313,7 +392,7 @@ class Chatbot:
         if index_to_use in ["latest"] or index_to_use is None:
             print(f"inseide:  if index_to_use in  latest")
             latest_retriever = self.latest_index.as_retriever(search_kwargs={"k": 5})
-            latest_docs = latest_retriever.get_relevant_documents(refined_query)
+            latest_docs = latest_retriever.get_relevant_documents(enhanced_query)
             print(f"Latest documents retrieved: {len(latest_docs)}")  # Debugging line
             all_docs.extend(latest_docs)
             latest_sources = [doc.metadata.get("source", "Unknown") for doc in latest_docs]
@@ -322,7 +401,7 @@ class Chatbot:
         if index_to_use in ["both", "latest"]:
             print(f"inseide:  if index_to_use in :both", "latest")
             latest_retriever = self.latest_index.as_retriever(search_kwargs={"k": 5})
-            latest_docs = latest_retriever.get_relevant_documents(refined_query)
+            latest_docs = latest_retriever.get_relevant_documents(enhanced_query)
             print(f"Latest documents retrieved: {len(latest_docs)}")  # Debugging line
             all_docs.extend(latest_docs)
             latest_sources = [doc.metadata.get("source", "Unknown") for doc in latest_docs]
@@ -332,7 +411,7 @@ class Chatbot:
             print(f"inseide:  if index_to_use in :both, old")
 
             old_retriever = self.old_index.as_retriever(search_kwargs={"k": 5})
-            old_docs = old_retriever.get_relevant_documents(refined_query)
+            old_docs = old_retriever.get_relevant_documents(enhanced_query)
             print(f"Old documents retrieved: {len(old_docs)}")  # Debugging line
             all_docs.extend(old_docs)
             old_sources = [doc.metadata.get("source", "Unknown") for doc in old_docs]
