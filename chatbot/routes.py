@@ -30,12 +30,14 @@ def api_overview():
 
 @chatbot_bp.route('/query', methods=['GET'])
 def query_bot():
-    question = request.args.get('question')
+    question = request.args.get('question', '').strip()
     thread_id = request.args.get('thread_id')
     sources = []
     if not question or not thread_id:
         return jsonify({"error": "Missing required parameters"}), 400
-
+    
+    if not question.endswith('?'):
+        question += '?'
     input_data = {"messages": [HumanMessage(content=question)]}
     try:
         response = workflow.invoke(input_data, config={"configurable": {"thread_id": thread_id}})
