@@ -473,12 +473,24 @@ class Chatbot:
                 for source in unique_sources:
                     if source:
                         # Check if "fact-check" is selected and include both "fact-check" and "fast-check"
+                        # if "fact-check" in article_type:
+                        #     if "https://www.boomlive.in/fact-check" in source or "https://www.boomlive.in/fast-check" in source:
+                        #         filtered_sources.append(source)
+                        # else:
+                        #     if f"https://www.boomlive.in/{article_type}" in source:
+                        #         filtered_sources.append(source)
+
+                         # Check if "fact-check" is selected and include both "fact-check" and "fast-check"
                         if "fact-check" in article_type:
                             if "https://www.boomlive.in/fact-check" in source or "https://www.boomlive.in/fast-check" in source:
                                 filtered_sources.append(source)
+                        # Include URLs matching the selected article type
+                        elif f"https://www.boomlive.in/{article_type}" in source:
+                            filtered_sources.append(source)
+                        # Fallback: If URL does not match specific categories, add it by default
                         else:
-                            if f"https://www.boomlive.in/{article_type}" in source:
-                                filtered_sources.append(source)
+                            filtered_sources.append(source)  # Ensures all BoomLive URLs are included
+
             print({"sources": all_sources})
             print({"filtered_sources": filtered_sources})
             return {
@@ -579,23 +591,37 @@ class Chatbot:
             source_texts = []
             first_three_urls = []
             first_three_urls = sources[:3]
-            for url in first_three_urls:
+            for url in sources:
                 content = fetch_page_text(url)  # You should have a function to fetch content
                 # Limit the snippet to, say, 500 characters (adjust as needed)
-                snippet = content[:500] if content else "No content available."
+                snippet = content[:1000] if content else "No content available."
                 source_texts.append(f"URL: {url}\nContent snippet: {snippet}\n")
 
-             # Step 2: Verify that the retrieved sources are actually relevant to the claim.
+            #  # Step 2: Verify that the retrieved sources are actually relevant to the claim.
+            # verification_prompt = f"""
+            # Please determine if any of the sources below directly confirm or refute the user’s claim even if it includes some parts or keywords patches query.
+
+            # - If NONE of them do, reply with ONLY: **"Not Found"**.
+            # - If ANY source provides relevant information, summarize the relevant evidence concisely.
+
+            # User Query: "{query}"
+            # - If there is some typo error in query , reply with ONLY: **Invalid**.
+            
+            # Retrieved Sources:
+            # {'\n'.join(source_texts)}
+            # """
+
             verification_prompt = f"""
-            Please determine if any of the sources below directly confirm or refute the user’s claim.
+            Please determine if any of the sources below directly confirm or refute the user’s claim, even if it includes partial information or relevant keywords related to the query.
 
             - If NONE of them do, reply with ONLY: **"Not Found"**.
             - If ANY source provides relevant information, summarize the relevant evidence concisely.
 
             User Query: "{query}"
+            - If there is some typo error in the query, reply with ONLY: **Invalid**.
 
             Retrieved Sources:
-            {'\n'.join(source_texts)}
+            {'\n\n'.join([f"Source: {url}\nContent: {snippet}" for url, snippet in zip(sources, source_texts)])}
             """
 
             print("##########################verification_prompt################################3")

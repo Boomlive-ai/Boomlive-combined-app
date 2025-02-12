@@ -3,61 +3,133 @@ from langchain_core.messages import HumanMessage
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-def prioritize_sources(response_text: str, sources: list) -> list:
+# def prioritize_sources(response_text: str, sources: list) -> list:
+#     """
+#     Reorder sources based on URL ID numbers as primary factor and content similarity as secondary factor.
+    
+#     Args:
+#         response_text (str): The generated response content
+#         sources (list): List of source URLs to prioritize
+        
+#     Returns:
+#         list: Reordered list of sources with priority based on ID and relevance
+#     """
+#     if not response_text or not sources:
+#         return sources
+    
+#     # Group sources by ID numbers
+#     def extract_id(url):
+#         try:
+#             return int(url.rstrip('/').split('-')[-1])
+#         except (ValueError, IndexError):
+#             return 0
+    
+#     # Create groups based on ID ranges (e.g., every 5000 IDs)
+#     id_groups = {}
+#     for source in sources:
+#         id_num = extract_id(source)
+#         group_key = id_num // 5000  # Group by ranges of 5000
+#         if group_key not in id_groups:
+#             id_groups[group_key] = []
+#         id_groups[group_key].append(source)
+    
+#     # Calculate content similarity scores
+#     vectorizer = TfidfVectorizer(stop_words="english")
+#     texts = [response_text] + sources
+#     tfidf_matrix = vectorizer.fit_transform(texts)
+#     similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    
+#     # Sort within each group by similarity
+#     final_sorted_sources = []
+#     for group_key in sorted(id_groups.keys(), reverse=True):  # Process groups from newest to oldest
+#         group_sources = id_groups[group_key]
+#         group_indices = [sources.index(s) for s in group_sources]
+#         group_similarities = [similarities[i] for i in group_indices]
+        
+#         # Sort sources within group by similarity
+#         sorted_group = [x for _, x in sorted(
+#             zip(group_similarities, group_sources),
+#             key=lambda pair: pair[0],
+#             reverse=True
+#         )]
+        
+#         final_sorted_sources.extend(sorted_group)
+    
+#     return final_sorted_sources
+
+import requests
+from bs4 import BeautifulSoup
+
+def fetch_source_content(url):
     """
-    Reorder sources based on URL ID numbers as primary factor and content similarity as secondary factor.
+    Fetch and extract meaningful content from a source URL.
     
     Args:
+        url (str): The URL of the source.
+    
+    Returns:
+        str: Extracted content (or snippet) for similarity calculation.
+    """
+    try:
+        response = requests.get(url, timeout=5)  # Fetch the page
+        if response.status_code != 200:
+            return ""  # Return empty string if fetch fails
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Extract the main content (customize based on website structure)
+        paragraphs = soup.find_all("p")  # Get all paragraph tags
+        content = " ".join([p.get_text() for p in paragraphs[:5]])  # Get first 5 paragraphs
+
+        return content.strip()
+    
+    except Exception as e:
+        print(f"Error fetching content from {url}: {e}")
+        return ""
+
+def prioritize_sources(user_query: str, response_text: str, sources: list) -> list:
+    """
+    Reorder sources based on similarity with user query and response text.
+    
+    Args:
+        user_query (str): The original user question
         response_text (str): The generated response content
         sources (list): List of source URLs to prioritize
         
     Returns:
-        list: Reordered list of sources with priority based on ID and relevance
+        list: Reordered list of sources with priority based on relevance
     """
-    if not response_text or not sources:
-        return sources
-    
-    # Group sources by ID numbers
+    if not user_query or not response_text or not sources:
+        return sources  # Return as-is if missing data
+
+    # Extract source IDs (assuming format ends in `-<number>`)
     def extract_id(url):
         try:
             return int(url.rstrip('/').split('-')[-1])
         except (ValueError, IndexError):
             return 0
+
+    # Fetch source content snippets (assuming we have a way to extract them)
+    source_texts = [fetch_source_content(url) for url in sources]  # Implement fetch_source_content function
     
-    # Create groups based on ID ranges (e.g., every 5000 IDs)
-    id_groups = {}
-    for source in sources:
-        id_num = extract_id(source)
-        group_key = id_num // 5000  # Group by ranges of 5000
-        if group_key not in id_groups:
-            id_groups[group_key] = []
-        id_groups[group_key].append(source)
-    
-    # Calculate content similarity scores
+    # Prepare text inputs for similarity calculation
+    texts = [user_query, response_text] + source_texts  # First two are query and response
+
+    # Compute TF-IDF similarity
     vectorizer = TfidfVectorizer(stop_words="english")
-    texts = [response_text] + sources
     tfidf_matrix = vectorizer.fit_transform(texts)
-    similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
-    
-    # Sort within each group by similarity
-    final_sorted_sources = []
-    for group_key in sorted(id_groups.keys(), reverse=True):  # Process groups from newest to oldest
-        group_sources = id_groups[group_key]
-        group_indices = [sources.index(s) for s in group_sources]
-        group_similarities = [similarities[i] for i in group_indices]
-        
-        # Sort sources within group by similarity
-        sorted_group = [x for _, x in sorted(
-            zip(group_similarities, group_sources),
-            key=lambda pair: pair[0],
-            reverse=True
-        )]
-        
-        final_sorted_sources.extend(sorted_group)
-    
-    return final_sorted_sources
 
+    # Compute similarity scores
+    query_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[2:]).flatten()  # Query vs Sources
+    response_similarities = cosine_similarity(tfidf_matrix[1:2], tfidf_matrix[2:]).flatten()  # Response vs Sources
 
+    # Combine scores (weighted sum, adjust weights if needed)
+    combined_scores = 0.6 * query_similarities + 0.4 * response_similarities
+
+    # Sort sources based on combined similarity score
+    sorted_sources = [x for _, x in sorted(zip(combined_scores, sources), key=lambda pair: pair[0], reverse=True)]
+
+    return sorted_sources
 
 def fetch_page_text(url):
     try:
