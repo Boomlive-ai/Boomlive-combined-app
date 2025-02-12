@@ -80,7 +80,7 @@
     protobuf==5.29.2
     proto-plus==1.25.0
     MarkupSafe==3.0.2
-
+    nltk==3.9.1
     # Development and Debugging
     ipython==8.31.0
     stack-data==0.6.3
@@ -99,3 +99,6 @@
     markdown-it-py==3.0.0
     rich==13.9.4
     wcwidth==0.2.13
+
+    # AI and Machine Learning
+    sentence-transformers==3.4.1

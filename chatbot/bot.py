@@ -1,6 +1,6 @@
 import os,requests
 from bs4 import BeautifulSoup
-from chatbot.utils import fetch_page_text
+from chatbot.utils import fetch_page_text, verify_sources, get_most_suitable_source
 import datetime
 from typing import Literal
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -62,6 +62,283 @@ class Chatbot:
         # self.latest_articles_api = fetch_latest_article_urls()
 
 
+    def enhance_query(self, original_query: str) -> dict:
+        """
+        Enhanced query processing optimized for mediator tool selection.
+        Analyzes query patterns to maximize correct tool selection.
+        """
+        enhanced_query = re.sub(r'\bboom\s+report\b', 'BOOM Research Report', original_query, flags=re.IGNORECASE)
+
+        # First, detect key patterns that strongly indicate specific tools
+        patterns = {
+            'boom_report': r'\b(?:boom|monthly|weekly)\s+report\b',
+            'date_patterns': [
+                r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b',
+                r'\b(jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b',
+                r'\b\d{4}\b',
+                r'\b(last|this|next)\s+(month|year|week)\b',
+                r'from\s+\w+\s+to\s+\w+',
+                r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)',
+            ],
+            'fact_check': [
+                r'\b(?:verify|fake|real|true|false|fact|check|confirm|debunk|misleading)\b',
+                r'\b(?:viral|rumor|hoax|misinformation|disinformation)\b',
+                r'\bis\s+(?:this|it|that)\s+(?:true|real|fake|false)\b',
+            ],
+            'latest_news': [
+                r'\b(?:latest|recent|new|current|today|now)\b',
+                r'\bupdate[sd]?\b',
+                r'\bbreaking\s+news\b'
+            ]
+        }
+        
+        enhancement_prompt = f"""
+        Analyze this query with BoomLive's context: "{original_query}"
+        
+        Key Indicators to Consider:
+        1. Report Requests:
+        - Monthly/Weekly BOOM reports
+        - Analysis summaries
+        - Trend reports
+        
+        2. Time References:
+        - Explicit dates (months, years)
+        - Relative time ("last month", "this year")
+        - Date ranges
+        - Historical references
+        
+        3. Content Type Signals:
+        - Fact-checking requests
+        - News updates
+        - Analysis requests
+        - Research queries
+        
+        4. Tool Selection Criteria:
+        - Custom Date Retriever needs: Reports, time-specific queries
+        - RAG needs: Fact-checks, analysis, research
+        - Latest Article needs: Current events, updates
+        
+        5. Mentioning proper article type in enhanced_query:
+        - If query has **BOOM Report** then replace it **BOOM Research Report**
+        Note 5th point is important
+        Provide structured analysis:
+        1. PRIMARY_TOOL: [CUSTOM_DATE_RETRIEVER, RAG, LATEST_ARTICLES]
+        2. CONFIDENCE: [HIGH, MEDIUM, LOW]
+        3. QUERY_TYPE: [REPORT, FACT_CHECK, NEWS, ANALYSIS]
+        4. TIME_CONTEXT: [Specify any temporal aspects]
+        5. ARTICLE_TYPE: [fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker, all]
+        6. ENHANCED_QUERY: [Modified query optimized for selected tool]
+        7. REASONING: [Brief explanation of tool selection]
+        """
+        
+        # Get LLM's analysis
+        response = self.llm.invoke([
+            self.system_message,
+            HumanMessage(content=enhancement_prompt)
+        ])
+        
+        # Parse LLM response into structured data
+        enhancement_data = {}
+        for line in response.content.split('\n'):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                enhancement_data[key.strip()] = value.strip()
+        
+        # Pattern matching to validate/adjust LLM's tool selection
+        has_boom_report = bool(re.search(patterns['boom_report'], original_query, re.IGNORECASE))
+        has_date = any(re.search(pattern, original_query, re.IGNORECASE) for pattern in patterns['date_patterns'])
+        has_fact_check = any(re.search(pattern, original_query, re.IGNORECASE) for pattern in patterns['fact_check'])
+        has_latest = any(re.search(pattern, original_query, re.IGNORECASE) for pattern in patterns['latest_news'])
+        
+        # Override LLM tool selection based on strong pattern matches
+        primary_tool = enhancement_data.get('PRIMARY_TOOL', 'RAG')
+        if has_boom_report or (has_date and 'report' in original_query.lower()):
+            primary_tool = 'CUSTOM_DATE_RETRIEVER'
+        elif has_fact_check:
+            primary_tool = 'RAG'
+        elif has_latest and not has_date:
+            primary_tool = 'LATEST_ARTICLES'
+        
+        # Prepare enhanced query based on selected tool
+        base_query = enhancement_data.get('ENHANCED_QUERY', enhanced_query)
+        if primary_tool == 'CUSTOM_DATE_RETRIEVER':
+            enhanced_query = f"time-specific {base_query}"
+        elif primary_tool == 'RAG':
+            enhanced_query = f"fact-verification {base_query}" if has_fact_check else base_query
+        else:
+            enhanced_query = f"latest-update {base_query}" if has_latest else base_query
+        
+        return {
+            "original_query": original_query,
+            "enhanced_query": enhanced_query,
+            "query_metadata": {
+                "primary_tool": primary_tool,
+                "confidence": enhancement_data.get('CONFIDENCE', 'MEDIUM'),
+                "query_type": enhancement_data.get('QUERY_TYPE', 'ANALYSIS'),
+                "time_context": enhancement_data.get('TIME_CONTEXT', 'not specified'),
+                "article_type": enhancement_data.get('ARTICLE_TYPE', 'all'),
+                "has_date": has_date,
+                "has_fact_check": has_fact_check,
+                "has_latest": has_latest,
+                "has_report": has_boom_report
+            }
+        }
+
+
+    def call_model(self, state: MessagesState):
+        messages = state['messages']
+        last_message = messages[-1]
+        original_query = last_message.content
+
+        # Mediator makes decisions
+        mediation_result = self.mediator(original_query)
+
+        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+        print("mediation_result", mediation_result)
+        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+        enhanced_query = mediation_result["enhanced_query"]
+        print("Enhanced Query Data:", enhanced_query)  # Debug print
+        fetch_latest_articles = mediation_result["fetch_latest_articles"]
+        use_rag = mediation_result["use_rag"]
+        custom_date_range = mediation_result["custom_date_range"]
+
+        index_to_use = mediation_result["index_to_use"]
+        if custom_date_range:
+            print("YES IT IS USING CUSTOM DATE RANGE FEATURE")
+            article_type = mediation_result["article_type"]
+            custom_date_result = self.retrieve_custom_date_articles(enhanced_query, article_type)
+            result_text = custom_date_result['result']
+            sources = custom_date_result['sources']
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
+
+            return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
+
+        if fetch_latest_articles:
+            # Fetch latest article URLs
+            article_type = mediation_result["article_type"]
+            print(f"fetched article type in latest articles {article_type}")
+            latest_urls = fetch_latest_article_urls(enhanced_query, article_type)
+            print("latest_urls", latest_urls)
+
+            # Determine article type string
+            article_type_text = f"{article_type} " if article_type.lower() != "all" else ""
+
+            # Check if latest_urls is empty
+            if latest_urls:
+                # Format response with the fetched URLs as sources
+                response_text = (
+                    f"Here are the latest {article_type_text} articles:\n"
+                    +  "\n\nSources:\n" + "\n".join(latest_urls)  # Use the fetched URLs as sources
+                )
+
+                ## I have to add the code here for llm call to process latest urls properly
+            else:
+                # Different response when no articles are found
+                response_text = f"Sorry, I couldn't find any recent {article_type_text}articles."
+
+            return {"messages": [AIMessage(content=response_text)]}
+
+
+        if use_rag or index_to_use is None:
+            print("isme ja hi nahi rAHA HAI:  if use_rag or index_to_use == None: ")
+            article_type = mediation_result["article_type"]
+            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+            print(article_type, "retrieve data ")
+            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+
+            # Retrieve data using RAG
+            index_to_use = "both"
+            rag_result = self.retrieve_data(enhanced_query, index_to_use, article_type)
+            result_text = rag_result['result']
+            sources = rag_result['sources']
+
+            if not sources:
+                return {"messages": [AIMessage(content="Not Found")]}
+            
+            source_texts = []
+            first_three_urls = []
+            first_three_urls = sources[:3]
+            for url in sources:
+                content = fetch_page_text(url)  # You should have a function to fetch content
+                # Limit the snippet to, say, 500 characters (adjust as needed)
+                snippet = content[:1000] if content else "No content available."
+                source_texts.append(f"URL: {url}\nContent snippet: {snippet}\n")
+
+            #  # Step 2: Verify that the retrieved sources are actually relevant to the claim.
+            # verification_prompt = f"""
+            # Please determine if any of the sources below directly confirm or refute the user’s claim even if it includes some parts or keywords patches query.
+
+            # - If NONE of them do, reply with ONLY: **"Not Found"**.
+            # - If ANY source provides relevant information, summarize the relevant evidence concisely.
+
+            # User Query: "{query}"
+            # - If there is some typo error in query , reply with ONLY: **Invalid**.
+            
+            # Retrieved Sources:
+            # {'\n'.join(source_texts)}
+            # """
+
+            # verification_prompt = f"""
+            # Please determine if any of the sources below directly confirm or refute the user’s claim, even if it includes partial information or relevant keywords related to the query.
+
+            # - If NONE of them do, reply with ONLY: **"Not Found"**.
+            # - If ANY source provides relevant information, summarize the relevant evidence concisely.
+
+            # User Query: "{enhanced_query}"
+            # - If there is some typo error in the query, reply with ONLY: **Invalid**.
+
+            # Retrieved Sources:
+            # {'\n\n'.join([f"Source: {url}\nContent: {snippet}" for url, snippet in zip(sources, source_texts)])}
+            # """
+
+            # print("##########################verification_prompt################################3")
+            # print(verification_prompt)
+            # print("##########################verification_prompt################################3")
+
+            # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            # verification_text = verification_result.content.strip()
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            # print(verification_text.lower())
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+            # result = verify_sources(enhanced_query, sources, source_texts)
+            source,source_text = get_most_suitable_source(enhanced_query, sources, source_texts)
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            print(source,source_text)
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")     
+            verification_prompt = f"""
+            Please determine if the following source directly confirms or refutes the user’s claim:
+
+            - If it does not, reply with ONLY: **"Not Found"**.
+            - If it provides relevant information, summarize the relevant evidence concisely.
+            - If the query has typos or is unclear, reply with ONLY: **"Invalid"**.
+
+            User Query: "{enhanced_query}"
+
+            Source: {source}
+
+            Content:
+            {source_text}
+            """
+            print("##########################verification_prompt################################3")
+            print(verification_prompt)
+            print("##########################verification_prompt################################3")
+            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            verification_text = verification_result.content.strip()
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            print(enhanced_query,verification_text.lower())
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            if "not found" in verification_text.lower():
+                return {"messages": [AIMessage(content="Not Found")]}
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources)
+
+            # Returning both the result and sources as context
+            return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
+
+
+        # Default LLM response
+        response = self.llm.invoke([self.system_message] + messages)
+        return {"messages": [AIMessage(content=response.content)]}
 
 
 
@@ -82,7 +359,8 @@ class Chatbot:
         Enhanced mediator that handles fact-check queries and invalid/random queries.
         """
         article_type = "all"  # Default to 'all' if no specific article type is provided
-        
+        enhanced_data = self.enhance_query(query)
+        enhanced_query = enhanced_data["enhanced_query"]
         # Check if the query is too short or contains random gibberish
         # if len(query.strip()) < 3 or not re.match(r'[A-Za-z0-9\s,.\'-]+$', query):
         #     return {
@@ -94,7 +372,10 @@ class Chatbot:
         #         "article_type":article_type
         #     }
         # print(f"Mediator called with query: {query}")
-  # Check for custom date range
+        # Check for custom date range
+
+
+    
         date_pattern = re.compile(
             r'(\bfrom\s+\d{4}-\d{2}-\d{2}\b.*?to\s+\d{4}-\d{2}-\d{2}\b)|'
             r'(\b(last|this)\s+(week|month|year)\b)', 
@@ -116,7 +397,7 @@ class Chatbot:
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
             f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all"
-            f"Query: {query}"
+            f"Query: {enhanced_query}"
         )
         
         decision = self.llm.invoke([HumanMessage(content=decision_prompt)])
@@ -130,9 +411,31 @@ class Chatbot:
             # Safely access the article_type
         if len(response_lines) > 4:
             article_type = re.sub(r'^\d+[\.\s]*', '', response_lines[4].strip()).lower()
+        print("#########################################################################")
+        print(decision_prompt)
+        print("#########################################################################")
         print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
         print(article_type)
         print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+
+
+        ########################################################
+      
+        metadata = enhanced_data["query_metadata"]
+         # Map primary tool to mediator response
+        if metadata["primary_tool"] == "CUSTOM_DATE_RETRIEVER":
+            return {
+                "fetch_latest_articles": False,
+                "use_rag": False,
+                "custom_date_range": True,
+                "index_to_use": None,
+                "response": "Using custom date retriever for temporal query",
+                "article_type": article_type,
+                "enhanced_query": enhanced_query 
+            }
+        ###############################################
+
+
         if custom_date_match:
             return {
                 "fetch_latest_articles": False,
@@ -140,7 +443,8 @@ class Chatbot:
                 "custom_date_range": True,
                 "index_to_use": None,
                 "response": "Query detected as custom date range, fetching articles for the specified range.",
-                "article_type": article_type 
+                "article_type": article_type,
+                "enhanced_query": enhanced_query 
             }
         
                 # If the query contains any of these keywords, mark it as a fact-check query
@@ -154,7 +458,8 @@ class Chatbot:
                 "custom_date_range": False,
                 "index_to_use": "both",  # Check both indexes for relevant data (latest and old)
                 "response": "Query detected as fact-check, using RAG tool.",
-                "article_type":article_type
+                "article_type": article_type,
+                "enhanced_query": enhanced_query
 
             }
         return {
@@ -162,7 +467,8 @@ class Chatbot:
             "use_rag": use_rag,
             "custom_date_range": custom_date_range,
             "index_to_use": index_to_use,
-            "article_type": article_type 
+            "article_type": article_type,
+            "enhanced_query": enhanced_query 
         }
 
 
@@ -175,14 +481,26 @@ class Chatbot:
         print(f"We are getting article type as {article_type}")
           # Get the current date
         current_date = datetime.now().strftime("%B %d, %Y")  # Format the current date as YYYY-MM-DD
+        # date_prompt = (
+        #     f"Analyze the following query and extract the date range (if any):\n"
+        #     f"Query: {query}\n"
+        #     f"The current date is {current_date}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
+        #     f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
+        #     f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc. And note range shouldn't exceed 1 month so adjust range which suits user requirements better but just provide 1 month range"
+            
+        # )
+
+
         date_prompt = (
             f"Analyze the following query and extract the date range (if any):\n"
             f"Query: {query}\n"
             f"The current date is {current_date}. Use this as the reference for relative terms like 'today' or 'last week'.\n"
-            f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying a date range.\n"
-            f"Otherwise, provide the result in the format 'from YYYY-MM-DD to YYYY-MM-DD' or a description like 'last week', etc. And note range shouldn't exceed 1 month so adjust range which suits user requirements better but just provide 1 month range"
-            
+            f"If terms like 'last year' or 'this year' are mentioned, just return 'last year' or 'this year' without specifying exact dates.\n"
+            f"Otherwise, provide the result strictly in the format 'from YYYY-MM-DD to YYYY-MM-DD'.\n"
+            f"Ensure that the date range does not exceed one month. If the query requests a longer period, adjust it to the most relevant 1-month range.\n"
         )
+
+
         # Get the date range from the query
         date_response = self.llm.invoke([self.system_message, HumanMessage(content=date_prompt)])
         date_range = date_response.content.strip()
@@ -266,7 +584,7 @@ class Chatbot:
         # Prepare a fallback response if no sources are found
         if not sources:
             return {
-                "result": f"No articles were found for the specified date range ({date_range}). Please try refining your query.",
+                "result": f"No articles were found for the specified date range ({date_range})",
                 "sources": []
             }
         filtered_sources = []
@@ -274,11 +592,11 @@ class Chatbot:
             filtered_sources = list(sources)
         else:
             for source in sources:
-                print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-                print(source)
-                print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
-                if source and f"https://www.boomlive.in/{article_type}" in source:
+                if f"https://www.boomlive.in/{article_type}" in source:
+                    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+                    print(source)
+                    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
                     filtered_sources.append(source) 
 
         if not filtered_sources:
@@ -292,7 +610,7 @@ class Chatbot:
         # )
         summary_prompt = (
             f"Summarize the information based on the following question: {query}.\n"
-            f"Use these sources to craft the response: {filtered_sources}\n"
+            f"Use these sources to craft the response: {filtered_sources[:3]}\n"
             f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks.\n\n"
             f"For each summary, list the original article URL explicitly under the summary.\n"
             f"Format: \n**Article Title Mentioned in Article Should be added dynalically:**\nYour summary here\n[Read more](Original article URL here)\n"
@@ -302,7 +620,7 @@ class Chatbot:
         print(summary_response.content.strip())
         return {
             "result": summary_response.content.strip(),
-            "sources": filtered_sources
+            "sources": filtered_sources[:3]
         }
     
 
@@ -415,7 +733,7 @@ class Chatbot:
             index_to_use = index_to_use.split(".")[-1].strip()  # This removes any extra text like "3." and keeps only "latest"
 
         if index_to_use in ["latest"] or index_to_use is None:
-            print(f"inseide:  if index_to_use in  latest")
+            print(f"inside:  if index_to_use in  latest")
             latest_retriever = self.latest_index.as_retriever(search_kwargs={"k": 5})
             latest_docs = latest_retriever.get_relevant_documents(enhanced_query)
             print(f"Latest documents retrieved: {len(latest_docs)}")  # Debugging line
@@ -519,131 +837,6 @@ class Chatbot:
         self.llm_with_tool = self.llm.bind_tools([rag_tool])
 
 
-
-
-    def call_model(self, state: MessagesState):
-        messages = state['messages']
-        last_message = messages[-1]
-        query = last_message.content
-
-        # Mediator makes decisions
-        mediation_result = self.mediator(query)
-        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-        print("mediation_result", mediation_result)
-        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
-
-        fetch_latest_articles = mediation_result["fetch_latest_articles"]
-        use_rag = mediation_result["use_rag"]
-        custom_date_range = mediation_result["custom_date_range"]
-
-        index_to_use = mediation_result["index_to_use"]
-        if custom_date_range:
-            article_type = mediation_result["article_type"]
-            custom_date_result = self.retrieve_custom_date_articles(query, article_type)
-            result_text = custom_date_result['result']
-            sources = custom_date_result['sources']
-            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
-
-            return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
-
-        if fetch_latest_articles:
-            # Fetch latest article URLs
-            article_type = mediation_result["article_type"]
-            print(f"fetched article type in latest articles {article_type}")
-            latest_urls = fetch_latest_article_urls(query, article_type)
-            print("latest_urls", latest_urls)
-
-            # Determine article type string
-            article_type_text = f"{article_type} " if article_type.lower() != "all" else ""
-
-            # Check if latest_urls is empty
-            if latest_urls:
-                # Format response with the fetched URLs as sources
-                response_text = (
-                    f"Here are the latest {article_type_text} articles:\n"
-                    +  "\n\nSources:\n" + "\n".join(latest_urls)  # Use the fetched URLs as sources
-                )
-
-                ## I have to add the code here for llm call to process latest urls properly
-            else:
-                # Different response when no articles are found
-                response_text = f"Sorry, I couldn't find any recent {article_type_text}articles."
-
-            return {"messages": [AIMessage(content=response_text)]}
-
-
-        if use_rag or index_to_use is None:
-            print("isme ja hi nahi rAHA HAI:  if use_rag or index_to_use == None: ")
-            article_type = mediation_result["article_type"]
-            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-            print(article_type, "retrieve data ")
-            print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-
-            # Retrieve data using RAG
-            index_to_use = "both"
-            rag_result = self.retrieve_data(query, index_to_use, article_type)
-            result_text = rag_result['result']
-            sources = rag_result['sources']
-
-            if not sources:
-                return {"messages": [AIMessage(content="Not Found")]}
-            
-            source_texts = []
-            first_three_urls = []
-            first_three_urls = sources[:3]
-            for url in sources:
-                content = fetch_page_text(url)  # You should have a function to fetch content
-                # Limit the snippet to, say, 500 characters (adjust as needed)
-                snippet = content[:1000] if content else "No content available."
-                source_texts.append(f"URL: {url}\nContent snippet: {snippet}\n")
-
-            #  # Step 2: Verify that the retrieved sources are actually relevant to the claim.
-            # verification_prompt = f"""
-            # Please determine if any of the sources below directly confirm or refute the user’s claim even if it includes some parts or keywords patches query.
-
-            # - If NONE of them do, reply with ONLY: **"Not Found"**.
-            # - If ANY source provides relevant information, summarize the relevant evidence concisely.
-
-            # User Query: "{query}"
-            # - If there is some typo error in query , reply with ONLY: **Invalid**.
-            
-            # Retrieved Sources:
-            # {'\n'.join(source_texts)}
-            # """
-
-            verification_prompt = f"""
-            Please determine if any of the sources below directly confirm or refute the user’s claim, even if it includes partial information or relevant keywords related to the query.
-
-            - If NONE of them do, reply with ONLY: **"Not Found"**.
-            - If ANY source provides relevant information, summarize the relevant evidence concisely.
-
-            User Query: "{query}"
-            - If there is some typo error in the query, reply with ONLY: **Invalid**.
-
-            Retrieved Sources:
-            {'\n\n'.join([f"Source: {url}\nContent: {snippet}" for url, snippet in zip(sources, source_texts)])}
-            """
-
-            print("##########################verification_prompt################################3")
-            print(verification_prompt)
-            print("##########################verification_prompt################################3")
-
-            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
-            verification_text = verification_result.content.strip()
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            print(verification_text.lower())
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            if "not found" in verification_text.lower():
-                return {"messages": [AIMessage(content="Not Found")]}
-            formatted_sources = "\n\nSources:\n" + "\n".join(sources)
-
-            # Returning both the result and sources as context
-            return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
-
-
-        # Default LLM response
-        response = self.llm.invoke([self.system_message] + messages)
-        return {"messages": [AIMessage(content=response.content)]}
 
 
 

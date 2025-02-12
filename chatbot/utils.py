@@ -60,6 +60,199 @@ from sklearn.metrics.pairwise import cosine_similarity
 import requests
 from bs4 import BeautifulSoup
 
+
+###############################################################################################################################
+
+import re
+import nltk
+from difflib import get_close_matches
+from rapidfuzz import fuzz, process
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Download stopwords
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
+STOPWORDS = set(stopwords.words('english'))
+
+def clean_text(text, remove_stopwords=True):
+    """Lowercase, remove special chars & optional stopwords."""
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    words = text.split()
+    if remove_stopwords:
+        words = [word for word in words if word not in STOPWORDS]
+    return " ".join(words)
+
+def detect_typos(query, sources, threshold=0.8):
+    """Detect typos by comparing words with sources."""
+    words = query.split()
+    dictionary = set(word.lower() for snippet in sources for word in snippet.split())
+    typos = [word for word in words if not get_close_matches(word, dictionary, cutoff=threshold)]
+    return typos if typos else None
+
+def compute_similarity(query, sources, source_texts):
+    """Use TF-IDF (with bigrams & trigrams) and cosine similarity to check relevance."""
+    vectorizer = TfidfVectorizer(ngram_range=(1,3))  # Capture phrases
+    docs = [query] + source_texts  # Include query as the first doc
+    tfidf_matrix = vectorizer.fit_transform(docs)
+
+    similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    
+    relevant_sources = [
+        (sources[i], source_texts[i]) for i in range(len(sources)) if similarities[i] > 0.2  # Lower threshold
+    ]
+    
+    return relevant_sources
+
+def fuzzy_match(query, sources, source_texts, fuzz_threshold=75):
+    """Use fuzzy matching to find approximate matches."""
+    matched_sources = []
+    for i, text in enumerate(source_texts):
+        score = fuzz.partial_ratio(query, text)
+        if score >= fuzz_threshold:
+            matched_sources.append((sources[i], text))
+    
+    return matched_sources
+
+def verify_sources(query, sources, source_texts):
+    """
+    Optimized verification function to check claim relevance.
+    """
+    # Step 1: Preprocess query & sources
+    clean_query = clean_text(query, remove_stopwords=False)  # Keep stopwords for meaning
+    clean_sources = [clean_text(text) for text in source_texts]
+
+    # Step 2: Detect typos
+    if detect_typos(clean_query, clean_sources):
+        return "Invalid"
+
+    # Step 3: Compute similarity & extract relevant sources
+    relevant_sources = compute_similarity(clean_query, sources, clean_sources)
+
+    # Step 4: Use fuzzy matching as a backup
+    if not relevant_sources:
+        relevant_sources = fuzzy_match(clean_query, sources, clean_sources)
+
+    if not relevant_sources:
+        return "Not Found"
+
+    return "\n\n".join([f"Source: {url}\nContent: {snippet}" for url, snippet in relevant_sources])
+
+import re
+import nltk
+from rapidfuzz import fuzz
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer, util
+
+# Download stopwords
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
+STOPWORDS = set(stopwords.words('english'))
+
+# Load a semantic similarity model
+bert_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def clean_text(text, remove_stopwords=True):
+    """Lowercase, remove special chars & optional stopwords."""
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    words = text.split()
+    if remove_stopwords:
+        words = [word for word in words if word not in STOPWORDS]
+    return " ".join(words)
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer, util
+from fuzzywuzzy import fuzz
+import numpy as np
+
+# Load BERT model globally (if not already loaded)
+bert_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def get_most_suitable_source(query, sources, source_texts):
+    if not sources or not source_texts:
+        print("No sources or texts available!")
+        return None, None
+
+    # Step 1: Clean user query & source texts
+    clean_query = clean_text(query, remove_stopwords=False)
+    clean_sources = [clean_text(text, remove_stopwords=False) for text in source_texts]
+
+    print("Cleaned Query:", clean_query)
+    print("Cleaned Sources:", clean_sources)
+
+    # Step 2: Compute TF-IDF Similarity
+    vectorizer = TfidfVectorizer(ngram_range=(1, 3))
+    docs = [clean_query] + clean_sources
+    tfidf_matrix = vectorizer.fit_transform(docs)
+    tfidf_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+
+    print("TF-IDF Similarities:", tfidf_similarities)
+
+    # Step 3: Compute Fuzzy Matching Scores
+    fuzzy_scores = np.array([fuzz.partial_ratio(clean_query, text) / 100 for text in clean_sources])  # Normalize to 0-1
+
+    print("Fuzzy Scores:", fuzzy_scores)
+
+    # Step 4: Compute BERT Semantic Similarity
+    query_embedding = bert_model.encode(clean_query, convert_to_tensor=True)
+    source_embeddings = bert_model.encode(clean_sources, convert_to_tensor=True)
+    bert_similarities = util.pytorch_cos_sim(query_embedding, source_embeddings).squeeze().tolist()
+
+    # Ensure it's always a list
+    if isinstance(bert_similarities, float):
+        bert_similarities = [bert_similarities]
+
+    print("BERT Similarities:", bert_similarities)
+
+    # Step 5: Normalize all scores (min-max scaling)
+    def normalize(arr):
+        return (arr - np.min(arr)) / (np.ptp(arr)) if np.ptp(arr) > 0 else arr
+
+    tfidf_similarities = normalize(np.array(tfidf_similarities))
+    bert_similarities = normalize(np.array(bert_similarities))
+    fuzzy_scores = normalize(fuzzy_scores)
+
+    # Step 6: Compute Final Score
+    combined_scores = (
+        (0.4 * tfidf_similarities) +
+        (0.2 * fuzzy_scores) +
+        (0.6 * bert_similarities)
+    )
+
+    print("Final Combined Scores:", combined_scores)
+
+    # Step 7: Return the most relevant source
+    best_index = np.argmax(combined_scores)
+
+    if combined_scores[best_index] > 0.3:  # Ensure relevance threshold
+        print("Best Match:", sources[best_index])
+        return sources[best_index], source_texts[best_index]
+
+    print("No suitable source found!")
+    return None, None
+
+# # Example usage:
+# query = "Earthquake in California 2025"
+# sources = ["https://news.com/article1", "https://news.com/article2"]
+# source_texts = [
+#     "A strong earthquake hit California in 2025 causing damage.",
+#     "New policies in California are being discussed."
+# ]
+
+# result = verify_sources(query, sources, source_texts)
+# print(result)
+
+
+###############################################################################################################################
+
+
 def fetch_source_content(url):
     """
     Fetch and extract meaningful content from a source URL.
@@ -449,7 +642,7 @@ def fetch_custom_range_articles_urls(from_date: str = None, to_date: str = None)
             print(f"Failed to fetch articles. Status code: {response.status_code}")
             break
     print(article_urls)        
-    return article_urls[:5]
+    return article_urls
 
 ################################################VECTOR STORE DATABASE################################################################
 
