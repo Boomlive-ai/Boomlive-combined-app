@@ -1,4 +1,6 @@
-import os
+import os,requests
+from bs4 import BeautifulSoup
+from chatbot.utils import fetch_page_text
 import datetime
 from typing import Literal
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -26,8 +28,11 @@ load_dotenv()
 class RAGQuery(BaseModel):
     query: str = Field(..., description="The query to retrieve relevant content for")
 
+
+
 # Chatbot class
 class Chatbot:
+
     def __init__(self):
         self.llm =ChatOpenAI(model_name="gpt-4o", temperature=0)
         self.memory = MemorySaver()
@@ -56,6 +61,10 @@ class Chatbot:
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
 
+
+
+
+
     def extract_keywords(self, query: str) -> str:
         """
         Simple keyword extraction without dependency on spacy
@@ -64,6 +73,9 @@ class Chatbot:
         words = query.lower().split()
         keywords = [word for word in words if word not in common_words]
         return " ".join(keywords)
+
+
+
 
     def mediator(self, query: str) -> dict:
         """
@@ -96,8 +108,6 @@ class Chatbot:
             'false claim', 'incorrect', 'misleading', 'manipulated', 'spliced', 'fake', 'inaccurate', 'disinformation'
         ]
         
-
-
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
@@ -154,6 +164,9 @@ class Chatbot:
             "index_to_use": index_to_use,
             "article_type": article_type 
         }
+
+
+
 
     def retrieve_custom_date_articles(self, query: str, article_type: str) -> dict:
         """
@@ -290,7 +303,13 @@ class Chatbot:
         return {
             "result": summary_response.content.strip(),
             "sources": filtered_sources
-        }    
+        }
+    
+
+
+
+
+
     def refine_query_for_vector_search(self, query: str, context_type: str = "all") -> dict:
         """
         Enhanced query refinement using LLM for better vector search results.
@@ -367,6 +386,12 @@ class Chatbot:
         
         # Apply the enhanced query in your retrieve_data method
         return search_params
+    
+
+
+
+
+
     def retrieve_data(self, query: str, index_to_use: str, article_type: str) -> dict:
         """
         Enhanced retrieve_data with better context utilization
@@ -418,6 +443,9 @@ class Chatbot:
             all_sources.extend(old_sources)
 
         if all_docs:
+
+
+            print("the code is going in all_docs")
             combined_content = "\n\n".join([doc.page_content for doc in all_docs])
 
             # If the query does not mention dates or "latest", do not filter dates
@@ -443,9 +471,16 @@ class Chatbot:
                 filtered_sources = unique_sources
             else:
                 for source in unique_sources:
-                    if source and  f"https://www.boomlive.in/{article_type}" in source:
-                        filtered_sources.append(source)
+                    if source:
+                        # Check if "fact-check" is selected and include both "fact-check" and "fast-check"
+                        if "fact-check" in article_type:
+                            if "https://www.boomlive.in/fact-check" in source or "https://www.boomlive.in/fast-check" in source:
+                                filtered_sources.append(source)
+                        else:
+                            if f"https://www.boomlive.in/{article_type}" in source:
+                                filtered_sources.append(source)
             print({"sources": all_sources})
+            print({"filtered_sources": filtered_sources})
             return {
                 "result": result_text,
                 "sources": filtered_sources
@@ -458,6 +493,9 @@ class Chatbot:
             }
 
 
+
+
+
     def call_tool(self):
         rag_tool = StructuredTool.from_function(
             func=self.retrieve_data,
@@ -467,6 +505,9 @@ class Chatbot:
         )
         self.tool_node = ToolNode(tools=[rag_tool])
         self.llm_with_tool = self.llm.bind_tools([rag_tool])
+
+
+
 
     def call_model(self, state: MessagesState):
         messages = state['messages']
@@ -531,15 +572,55 @@ class Chatbot:
             rag_result = self.retrieve_data(query, index_to_use, article_type)
             result_text = rag_result['result']
             sources = rag_result['sources']
+
+            if not sources:
+                return {"messages": [AIMessage(content="Not Found")]}
             
-            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\nNo sources available."
+            source_texts = []
+            first_three_urls = []
+            first_three_urls = sources[:3]
+            for url in first_three_urls:
+                content = fetch_page_text(url)  # You should have a function to fetch content
+                # Limit the snippet to, say, 500 characters (adjust as needed)
+                snippet = content[:500] if content else "No content available."
+                source_texts.append(f"URL: {url}\nContent snippet: {snippet}\n")
+
+             # Step 2: Verify that the retrieved sources are actually relevant to the claim.
+            verification_prompt = f"""
+            Please determine if any of the sources below directly confirm or refute the user’s claim.
+
+            - If NONE of them do, reply with ONLY: **"Not Found"**.
+            - If ANY source provides relevant information, summarize the relevant evidence concisely.
+
+            User Query: "{query}"
+
+            Retrieved Sources:
+            {'\n'.join(source_texts)}
+            """
+
+            print("##########################verification_prompt################################3")
+            print(verification_prompt)
+            print("##########################verification_prompt################################3")
+
+            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            verification_text = verification_result.content.strip()
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            print(verification_text.lower())
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            if "not found" in verification_text.lower():
+                return {"messages": [AIMessage(content="Not Found")]}
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources)
 
             # Returning both the result and sources as context
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
+
         # Default LLM response
-        response = self.llm_with_tool.invoke([self.system_message] + messages)
+        response = self.llm.invoke([self.system_message] + messages)
         return {"messages": [AIMessage(content=response.content)]}
+
+
+
 
     def router_function(self, state: MessagesState) -> Literal["tools", END]:
         messages = state['messages']
@@ -547,6 +628,9 @@ class Chatbot:
         if last_message.tool_calls:
             return "tools"
         return END
+
+
+
 
     def __call__(self):
         self.call_tool()

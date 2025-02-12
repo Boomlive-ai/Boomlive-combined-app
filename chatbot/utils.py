@@ -57,6 +57,20 @@ def prioritize_sources(response_text: str, sources: list) -> list:
     
     return final_sorted_sources
 
+
+
+def fetch_page_text(url):
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Extract main text – this may require some custom logic depending on the page structure.
+            paragraphs = soup.find_all('p')
+            text = "\n".join(p.get_text() for p in paragraphs)
+            return text.strip()
+    except Exception as e:
+        print(f"Error fetching {url}: {e}")
+    return ""
 # def prioritize_sources(response_text: str, sources: list) -> list:
 #     """
 #     Reorder sources based on similarity to the response text.
