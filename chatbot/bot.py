@@ -120,9 +120,11 @@ class Chatbot:
         
         5. Mentioning proper article type in enhanced_query:
         - If query has **BOOM Report** then replace it **BOOM Research Report**
+        - If recent, latest, current keywords are present in query are asked it should put primary_tool as **LATEST_ARTICLES**
+
         Note 5th point is important
         Provide structured analysis:
-        1. PRIMARY_TOOL: [CUSTOM_DATE_RETRIEVER, RAG, LATEST_ARTICLES]
+        1. PRIMARY_TOOL: [LATEST_ARTICLES, CUSTOM_DATE_RETRIEVER, RAG]
         2. CONFIDENCE: [HIGH, MEDIUM, LOW]
         3. QUERY_TYPE: [REPORT, FACT_CHECK, NEWS, ANALYSIS]
         4. TIME_CONTEXT: [Specify any temporal aspects]
@@ -152,7 +154,7 @@ class Chatbot:
         
         # Override LLM tool selection based on strong pattern matches
         primary_tool = enhancement_data.get('PRIMARY_TOOL', 'RAG')
-        if has_boom_report or (has_date and 'report' in original_query.lower()):
+        if has_boom_report or (has_date and 'report' in original_query.lower()) and not has_latest:
             primary_tool = 'CUSTOM_DATE_RETRIEVER'
         elif has_fact_check:
             primary_tool = 'RAG'
@@ -360,6 +362,7 @@ class Chatbot:
         """
         article_type = "all"  # Default to 'all' if no specific article type is provided
         enhanced_data = self.enhance_query(query)
+        print(enhanced_data)
         enhanced_query = enhanced_data["enhanced_query"]
         # Check if the query is too short or contains random gibberish
         # if len(query.strip()) < 3 or not re.match(r'[A-Za-z0-9\s,.\'-]+$', query):
@@ -396,7 +399,7 @@ class Chatbot:
             f"2. Should this query use the RAG tool and  if user is asking any question or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
-            f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all"
+            f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all. If query has boom-report then it is boom-research"
             f"Query: {enhanced_query}"
         )
         
