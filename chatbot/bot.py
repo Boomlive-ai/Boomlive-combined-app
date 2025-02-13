@@ -56,6 +56,7 @@ class Chatbot:
                     "Ensure responses are clear, relevant, and do not mention or imply the existence of any supporting material unless necessary for answering the query. "
                     f"Note: Today's date is {current_date}."
                     f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
+                    f"Please do not forget to add emojis to make response user friendly"
                 )
         )
         # External API for latest articles
