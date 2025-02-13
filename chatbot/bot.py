@@ -1,6 +1,6 @@
 import os,requests
 from bs4 import BeautifulSoup
-from chatbot.utils import fetch_page_text, verify_sources, get_most_suitable_source
+from chatbot.utils import fetch_page_text, verify_sources, get_most_suitable_source, extract_articles
 import datetime
 from typing import Literal
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -205,6 +205,44 @@ class Chatbot:
         custom_date_range = mediation_result["custom_date_range"]
 
         index_to_use = mediation_result["index_to_use"]
+        use_tag = mediation_result["use_tag"]
+        
+        if use_tag:
+            tag_url = mediation_result["tag_url"]
+            print("TAG_URL", tag_url)
+
+            # Extract real articles from BoomLive.in
+            articles = extract_articles(tag_url)  # Returns a list of (title, url, summary)
+
+            # Format articles correctly (if available)
+            if articles:
+                related_articles_section = "\n".join(
+                    f"- [{title}]({url}) - {summary}" for title, url, summary in articles
+                )
+            else:
+                related_articles_section = f"For more fact-checks and articles on this topic, visit the [BoomLive Tag Page]({tag_url})."
+
+            # Create a refined prompt without an explicit "Answer to the Query" section
+            tag_prompt = f"""
+            You are an AI assistant analyzing news articles from BoomLive.in. Your task is to generate an informative response based on verified articles from the given tag.
+
+            **User Query:** {enhanced_query}
+
+            **Instructions:**
+            - Provide relevant insights from the articles.
+            - Summarize key points concisely.
+            - Do **not** include a separate "Answer to the Query" heading.
+            - If articles exist, list them as markdown links.
+            - If no articles are found, guide the user to the tag page.
+
+            **Related Articles:**  
+            {related_articles_section}
+            """
+
+            # Get response from LLM
+            tag_response = self.llm.invoke([self.system_message, HumanMessage(content=tag_prompt)])
+
+            return {"messages": [AIMessage(content=tag_response.content)]}
         if custom_date_range:
             print("YES IT IS USING CUSTOM DATE RANGE FEATURE")
             article_type = mediation_result["article_type"]
@@ -377,8 +415,59 @@ class Chatbot:
         # print(f"Mediator called with query: {query}")
         # Check for custom date range
 
+# Check for tag-based queries with trending tags context
+        tag_analysis_prompt = f"""
+        You are an AI assistant for BoomLive. BoomLive maintains trending tags at https://www.boomlive.in/trending-tags.
+        Each tag can be accessed via the URL pattern: https://www.boomlive.in/tags/{{tagName}}.
 
-    
+        **Your Task:**
+        Determine if the user query explicitly asks for fact-checks, explainers, or articles related to a specific tag.
+
+        **Query:** "{query}"
+
+        **Conditions for it to be a tag-based query (IS_TAG_QUERY = yes):**
+        - The query should explicitly mention fact-checks, explainers, or articles.
+        - Examples of valid queries:
+        - "Provide fact-checks on Narendra Modi."
+        - "Show explainers on Rahul Gandhi."
+        - "Give articles on Maharashtra elections."
+        - General topic discussions, opinions, or broad searches should NOT be considered tag queries.
+
+        **Output Format:**
+        IS_TAG_QUERY: <yes/no>
+        TAG: <extracted tag> (Only if IS_TAG_QUERY = yes)
+        CONTENT_TYPE: <fact-check/all>
+        USE_TAG_URL: <yes/no> (Only if IS_TAG_QUERY = yes)
+        """
+
+        tag_analysis = self.llm.invoke([HumanMessage(content=tag_analysis_prompt)])
+
+        # Parse the LLM response
+        tag_results = {}
+        for line in tag_analysis.content.strip().split('\n'):
+            if ':' in line:
+                key, value = line.split(':', 1)
+                tag_results[key.strip()] = value.strip().lower()
+
+        # Process only if it's a tag query
+        if (tag_results.get('IS_TAG_QUERY') == 'yes' and 
+            tag_results.get('TAG') and 
+            tag_results.get('USE_TAG_URL') == 'yes'):
+            
+            tag = tag_results['TAG'].replace(' ', '%20')  # URL encode spaces
+            
+            return {
+                "fetch_latest_articles": False,  # Fetch from the tag URL directly
+                "use_rag": False,  # Don't use RAG since we have direct URL
+                "use_tag": True,  # Use the tag URL for fetching articles
+                "custom_date_range": False,
+                "index_to_use": "both",  # Not using indices
+                "article_type": tag_results.get('CONTENT_TYPE', 'all'),
+                "enhanced_query": enhanced_query,
+                "tag_url": f"https://www.boomlive.in/tags/{tag}"  # Direct tag URL reference
+            }
+
+        
         date_pattern = re.compile(
             r'(\bfrom\s+\d{4}-\d{2}-\d{2}\b.*?to\s+\d{4}-\d{2}-\d{2}\b)|'
             r'(\b(last|this)\s+(week|month|year)\b)', 
@@ -430,6 +519,7 @@ class Chatbot:
             return {
                 "fetch_latest_articles": False,
                 "use_rag": False,
+                "use_tag": False,
                 "custom_date_range": True,
                 "index_to_use": None,
                 "response": "Using custom date retriever for temporal query",
@@ -443,6 +533,7 @@ class Chatbot:
             return {
                 "fetch_latest_articles": False,
                 "use_rag": False,
+                "use_tag": False,
                 "custom_date_range": True,
                 "index_to_use": None,
                 "response": "Query detected as custom date range, fetching articles for the specified range.",
@@ -458,6 +549,7 @@ class Chatbot:
             return {
                 "fetch_latest_articles": False,  # Skip fetching articles if fact-checking
                 "use_rag": True,  # Always use RAG for fact-checking queries
+                "use_tag": False,
                 "custom_date_range": False,
                 "index_to_use": "both",  # Check both indexes for relevant data (latest and old)
                 "response": "Query detected as fact-check, using RAG tool.",
@@ -468,6 +560,7 @@ class Chatbot:
         return {
             "fetch_latest_articles": fetch_latest_articles,
             "use_rag": use_rag,
+            "use_tag": False,
             "custom_date_range": custom_date_range,
             "index_to_use": index_to_use,
             "article_type": article_type,
