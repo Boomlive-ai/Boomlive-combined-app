@@ -722,12 +722,12 @@ class Chatbot:
         current_date = get_current_date()
         print(current_date)
         # Refine the query using LLM
-        refined_params = self.refine_query_for_vector_search(query, article_type)
-        enhanced_query = refined_params["enhanced_query"]
-        refined_query = self.extract_keywords(query)
+        # refined_params = self.refine_query_for_vector_search(query, article_type)
+        enhanced_query = query#refined_params["enhanced_query"]
+        # refined_query = self.extract_keywords(query)
         all_docs = []
         all_sources = []
-        print("refined_query", refined_query)
+        # print("refined_query", refined_query)
         print("enhanced_query", enhanced_query)
         # Determine if the query mentions dates or the latest content
         is_date_filtered = "latest" in query.lower() or "date" in query.lower()  # Check if the query mentions date or "latest"
