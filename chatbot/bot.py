@@ -453,12 +453,10 @@ class Chatbot:
         **Query:** "{enhanced_query}"
 
         **Conditions for it to be a tag-based query (IS_TAG_QUERY = yes):**
-        - The query should explicitly mention fact-checks, explainers, or articles.
         - Examples of valid queries:
         - "Provide fact-checks on Narendra Modi."
         - "Show explainers on Rahul Gandhi."
         - "Give articles on Maharashtra elections."
-        - General topic discussions, opinions, or broad searches should NOT be considered tag queries.
 
         **Output Format:**
         IS_TAG_QUERY: <yes/no>
@@ -885,8 +883,6 @@ class Chatbot:
             all_sources.extend(old_sources)
 
         if all_docs:
-
-
             print("the code is going in all_docs")
             combined_content = "\n\n".join([doc.page_content for doc in all_docs])
 
