@@ -20,7 +20,8 @@ from chatbot.utils import fetch_latest_article_urls, get_current_date, fetch_cus
 from langchain_openai import ChatOpenAI
 import calendar
 from datetime import datetime, date, timedelta
-
+from deep_translator import GoogleTranslator
+from langdetect import detect
 # Load environment variables
 load_dotenv()
 
@@ -68,6 +69,17 @@ class Chatbot:
         Enhanced query processing optimized for mediator tool selection.
         Analyzes query patterns to maximize correct tool selection.
         """
+
+            # Step 1: Detect if the query is in English
+        detected_lang = detect(original_query)
+        
+        if detected_lang != "en":
+            # Translate the query to English
+            translator = GoogleTranslator(source="auto", target="en")
+            original_query = translator.translate(original_query)
+        else:
+            original_query = original_query
+
         enhanced_query = re.sub(r'\bboom\s+report\b', 'BOOM Research Report', original_query, flags=re.IGNORECASE)
 
         # First, detect key patterns that strongly indicate specific tools
@@ -438,7 +450,7 @@ class Chatbot:
         **Your Task:**
         Determine if the user query explicitly asks for fact-checks, explainers, or articles related to a specific tag.
 
-        **Query:** "{query}"
+        **Query:** "{enhanced_query}"
 
         **Conditions for it to be a tag-based query (IS_TAG_QUERY = yes):**
         - The query should explicitly mention fact-checks, explainers, or articles.
@@ -488,7 +500,7 @@ class Chatbot:
             r'(\b(last|this)\s+(week|month|year)\b)', 
             re.IGNORECASE
         )
-        custom_date_match = date_pattern.search(query)
+        custom_date_match = date_pattern.search(enhanced_query)
 
         # Check if query is related to fact-checking
         fact_check_keywords = [
@@ -557,7 +569,7 @@ class Chatbot:
             }
         
                 # If the query contains any of these keywords, mark it as a fact-check query
-        is_fact_check = any(keyword in query.lower() for keyword in fact_check_keywords)
+        is_fact_check = any(keyword in enhanced_query.lower() for keyword in fact_check_keywords)
         print("is_fact_check", is_fact_check)
         # Force the use of RAG for fact-check queries
         if is_fact_check:
