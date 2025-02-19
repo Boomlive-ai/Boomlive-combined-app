@@ -731,7 +731,7 @@ class Chatbot:
         print(summary_response.content.strip())
         return {
             "result": summary_response.content.strip(),
-            # "sources": filtered_sources[:3]
+            "sources": []
         }
     
 
