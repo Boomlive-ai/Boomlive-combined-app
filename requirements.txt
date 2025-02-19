@@ -102,3 +102,4 @@
 
     # AI and Machine Learning
     sentence-transformers==3.4.1
+    textblob==0.19.0
