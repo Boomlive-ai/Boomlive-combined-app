@@ -165,73 +165,53 @@ def clean_text(text, remove_stopwords=True):
         words = [word for word in words if word not in STOPWORDS]
     return " ".join(words)
 
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer, util
+from sklearn.feature_extraction.text import CountVectorizer
 from fuzzywuzzy import fuzz
+from textblob import TextBlob
 import numpy as np
 
-# Load BERT model globally (if not already loaded)
-bert_model = SentenceTransformer('all-MiniLM-L6-v2')
+def correct_spelling(text):
+    return str(TextBlob(text).correct())  # Corrects misspellings
+
+def extract_title_from_url(url):
+    return url.replace("https://www.boomlive.in/", "").replace("-", " ").replace("/", " ").lower()
 
 def get_most_suitable_source(query, sources, source_texts):
     if not sources or not source_texts:
         print("No sources or texts available!")
         return None, None
 
-    # Step 1: Clean user query & source texts
-    clean_query = clean_text(query, remove_stopwords=False)
-    clean_sources = [clean_text(text, remove_stopwords=False) for text in source_texts]
+    # Step 1: Correct spelling errors in the query
+    corrected_query = correct_spelling(query)
+    query_words = set(corrected_query.lower().split())
 
-    print("Cleaned Query:", clean_query)
-    print("Cleaned Sources:", clean_sources)
+    # Step 2: Extract words from source texts
+    vectorizer = CountVectorizer(stop_words="english")
+    vectorizer.fit([corrected_query] + source_texts)
+    source_keywords = [set(text.lower().split()) for text in source_texts]
 
-    # Step 2: Compute TF-IDF Similarity
-    vectorizer = TfidfVectorizer(ngram_range=(1, 3))
-    docs = [clean_query] + clean_sources
-    tfidf_matrix = vectorizer.fit_transform(docs)
-    tfidf_similarities = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:]).flatten()
+    # Step 3: Compute scores based on:
+    scores_text = [len(query_words & keywords) / len(query_words) for keywords in source_keywords]
+    scores_url = [fuzz.partial_ratio(corrected_query, url) / 100 for url in sources]
+    scores_title = [fuzz.partial_ratio(corrected_query, extract_title_from_url(url)) / 100 for url in sources]
 
-    print("TF-IDF Similarities:", tfidf_similarities)
-
-    # Step 3: Compute Fuzzy Matching Scores
-    fuzzy_scores = np.array([fuzz.partial_ratio(clean_query, text) / 100 for text in clean_sources])  # Normalize to 0-1
-
-    print("Fuzzy Scores:", fuzzy_scores)
-
-    # Step 4: Compute BERT Semantic Similarity
-    query_embedding = bert_model.encode(clean_query, convert_to_tensor=True)
-    source_embeddings = bert_model.encode(clean_sources, convert_to_tensor=True)
-    bert_similarities = util.pytorch_cos_sim(query_embedding, source_embeddings).squeeze().tolist()
-
-    # Ensure it's always a list
-    if isinstance(bert_similarities, float):
-        bert_similarities = [bert_similarities]
-
-    print("BERT Similarities:", bert_similarities)
-
-    # Step 5: Normalize all scores (min-max scaling)
+    # Step 4: Normalize scores
     def normalize(arr):
-        return (arr - np.min(arr)) / (np.ptp(arr)) if np.ptp(arr) > 0 else arr
+        return (arr - np.min(arr)) / np.ptp(arr) if np.ptp(arr) > 0 else arr
 
-    tfidf_similarities = normalize(np.array(tfidf_similarities))
-    bert_similarities = normalize(np.array(bert_similarities))
-    fuzzy_scores = normalize(fuzzy_scores)
+    scores_text = normalize(np.array(scores_text))
+    scores_url = normalize(np.array(scores_url))
+    scores_title = normalize(np.array(scores_title))
 
-    # Step 6: Compute Final Score
-    combined_scores = (
-        (0.4 * tfidf_similarities) +
-        (0.2 * fuzzy_scores) +
-        (0.6 * bert_similarities)
-    )
+    # Step 5: Compute final weighted score
+    combined_scores = (0.5 * scores_text) + (0.3 * scores_url) + (0.2 * scores_title)
 
     print("Final Combined Scores:", combined_scores)
 
-    # Step 7: Return the most relevant source
+    # Step 6: Find the best match
     best_index = np.argmax(combined_scores)
 
-    if combined_scores[best_index] > 0.3:  # Ensure relevance threshold
+    if combined_scores[best_index] > 0.3:  # Adjust relevance threshold
         print("Best Match:", sources[best_index])
         return sources[best_index], source_texts[best_index]
 

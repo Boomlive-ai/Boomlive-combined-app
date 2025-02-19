@@ -342,38 +342,52 @@ class Chatbot:
             # print(verification_text.lower())
             # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
-            # result = verify_sources(enhanced_query, sources, source_texts)
-            source,source_text = get_most_suitable_source(enhanced_query, sources, source_texts)
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            print(source,source_text)
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")     
+            # # result = verify_sources(enhanced_query, sources, source_texts)
+            # source,source_text = get_most_suitable_source(enhanced_query, sources, source_texts)
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            # print(source,source_text)
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")     
+            # verification_prompt = f"""
+            # Please determine if the following source directly confirms or refutes the user’s claim:
+
+            # - If it does not, reply with ONLY: **"Not Found"**.
+            # - If it provides relevant information, summarize the relevant evidence concisely.
+            # - If the query has typos or is unclear, reply with ONLY: **"Invalid"**.
+
+            # User Query: "{enhanced_query}"
+
+            # Retrieved Sources:
+            # {'\n\n'.join([f"Source: {url}\nContent: {snippet}" for url, snippet in zip(sources[:3], source_texts[:3])])}
+            # """
+            # print("##########################verification_prompt################################3")
+            # print(verification_prompt)
+            # print("##########################verification_prompt################################3")
+            # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            # verification_text = verification_result.content.strip()
+
+
             verification_prompt = f"""
-            Please determine if the following source directly confirms or refutes the user’s claim:
+            Analyze the following text and determine whether it explicitly states that there is no verified information available.
 
-            - If it does not, reply with ONLY: **"Not Found"**.
-            - If it provides relevant information, summarize the relevant evidence concisely.
-            - If the query has typos or is unclear, reply with ONLY: **"Invalid"**.
+            - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
+            - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
+            - Ignore any extra information such as disclaimers, general advice, or calls for verification.
 
-            User Query: "{enhanced_query}"
-
-            Source: {source}
-
-            Content:
-            {source_text}
+            Text to analyze:
+            "{result_text}"
             """
-            print("##########################verification_prompt################################3")
-            print(verification_prompt)
-            print("##########################verification_prompt################################3")
+
             verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
-            verification_text = verification_result.content.strip()
+            verification_text = verification_result.content.strip().lower()
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
             print(enhanced_query,verification_text.lower())
             print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            if "not found" in verification_text.lower():
-                return {"messages": [AIMessage(content="Not Found")]}
-            formatted_sources = "\n\nSources:\n" + "\n".join(sources)
 
+
+            if "not found" in verification_text.lower() or not sources: #
+                return {"messages": [AIMessage(content="Not Found")]}
             # Returning both the result and sources as context
+            formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
 
