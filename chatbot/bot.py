@@ -311,7 +311,9 @@ class Chatbot:
                 "not present in",
                 "not covered in",
                 "not available in",
-                "not included in"
+                "not included in",
+                "there is no specific information",
+                "isn't specific"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -450,7 +452,8 @@ class Chatbot:
                 "not covered in",
                 "not available in",
                 "not included in",
-                "there is no specific information"
+                "there is no specific information",
+                "isn't specific"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
