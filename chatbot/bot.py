@@ -431,6 +431,24 @@ class Chatbot:
 
         # Default LLM response
         response = self.llm.invoke([self.system_message] + messages)
+        resultText = response.content
+        
+        verification_prompt = f"""
+        Analyze the following text and determine whether it explicitly states that there is no verified information available.
+        - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
+        - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
+        - Ignore any extra information such as disclaimers, general advice, greetings meessages .
+        - if response is some greetings then mark reply with ONLY: **"Verified"**
+        Text to analyze:
+        "{resultText}"
+        """
+        verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+        verification_text = verification_result.content.strip().lower()
+        print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+        print(enhanced_query,verification_text.lower())
+        print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+        if "not found" in verification_text.lower(): #
+                return {"messages": [AIMessage(content="Not Found")]}
         return {"messages": [AIMessage(content=response.content)]}
 
 
