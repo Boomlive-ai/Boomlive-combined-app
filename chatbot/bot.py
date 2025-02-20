@@ -813,7 +813,7 @@ class Chatbot:
 
                 if f"https://www.boomlive.in/{article_type}" in source:
                     print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-                    print(source)
+                    print(source, "article_type",article_type)
                     print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
                     filtered_sources.append(source) 
 
@@ -826,12 +826,13 @@ class Chatbot:
         #     f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks."
         #     f"Provide article url for each article below their summary: {filtered_sources}"
         # )
+        print("FILTERED SOURCES: ",filtered_sources)
         summary_prompt = (
             f"Summarize the information based on the following question: {query}.\n"
             f"Use these sources to craft the response: {filtered_sources[:3]}\n"
             f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks.\n\n"
             f"For each summary, list the original article URL explicitly under the summary.\n"
-            f"Format: \n**Article Title Mentioned in Article Should be added dynalically:**\nYour summary here\n[Read more](Original article URL here)\n"
+            f"Format: \n**Article Title Mentioned in Article Should be added dynalically:**\nYour summary here\n\n[Read more](Original article URL here)\n"
             f"Prevent adding emojis in response"
         )
 
