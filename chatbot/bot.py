@@ -433,27 +433,50 @@ class Chatbot:
             # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
             # verification_text = verification_result.content.strip()
 
+            no_info_indicators = [
+                "provided sources do not contain",
+                "sources do not contain",
+                "cannot provide a summary",
+                "I cannot provide",
+                "cannot verify",
+                "no information found",
+                "no verified information",
+                "unable to find",
+                "no sources found",
+                "I'm sorry, but",
+                "does not mention",
+                "not mentioned in",
+                "not present in",
+                "not covered in",
+                "not available in",
+                "not included in",
+                "there is no specific information"
+            ]
+            response_lower = result_text.lower()
+                # Check if any indicators are present
+            for indicator in no_info_indicators:
+                if indicator.lower() in response_lower or not sources:
+                    return {"messages": [AIMessage(content="Not Found")]}
+            # verification_prompt = f"""
+            # Analyze the following text and determine whether it explicitly states that there is no verified information available.
 
-            verification_prompt = f"""
-            Analyze the following text and determine whether it explicitly states that there is no verified information available.
+            # - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
+            # - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
+            # - Ignore any extra information such as disclaimers, general advice, or calls for verification.
 
-            - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
-            - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
-            - Ignore any extra information such as disclaimers, general advice, or calls for verification.
+            # Text to analyze:
+            # "{result_text}"
+            # """
 
-            Text to analyze:
-            "{result_text}"
-            """
-
-            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
-            verification_text = verification_result.content.strip().lower()
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            print(enhanced_query,verification_text.lower())
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            # verification_text = verification_result.content.strip().lower()
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            # print(enhanced_query,verification_text.lower())
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
 
 
-            if "not found" in verification_text.lower() or not sources: #
-                return {"messages": [AIMessage(content="Not Found")]}
+            # if "not found" in verification_text.lower() or not sources: #
+            #     return {"messages": [AIMessage(content="Not Found")]}
             # Returning both the result and sources as context
             formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
