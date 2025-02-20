@@ -270,26 +270,56 @@ class Chatbot:
 
 
             
+            # verification_prompt = f"""
+            # - If response mentions that there is no verified information for source or provided sources do not contain any information then return with only **"Not Found"**
+            # Response:
+            # "{result_text}"
+            # """
             verification_prompt = f"""
-            Analyze the following text and determine whether it explicitly states that there is no verified information available.
+            STRICT VERIFICATION PROTOCOL:
 
-            - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
-            - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
-            - Ignore any extra information such as disclaimers, general advice, or calls for verification.
-
-            Text to analyze:
+            Review this response text carefully:
             "{result_text}"
+
+            Return EXACTLY "NOT_FOUND" (without quotes) if ANY of these conditions are met:
+            1. The response explicitly states it cannot find information
+            2. The response mentions sources do not contain relevant information
+            3. The response includes phrases like "I cannot provide", "cannot verify", or "no information"
+            4. The response apologizes for lack of information
+
+            Do not include any explanation, reasoning, or additional text.
+            Your output must be EXACTLY "NOT_FOUND" if verification fails, nothing else.
             """
-
-            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
-            verification_text = verification_result.content.strip().lower()
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-            print(enhanced_query,verification_text.lower())
-            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
-
-
-            if "not found" in verification_text.lower() or not sources: #
-                return {"messages": [AIMessage(content="Not Found")]}
+            # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            # verification_text = verification_result.content.strip().lower()
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            # print(enhanced_query,verification_text.lower())
+            # print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            no_info_indicators = [
+                "provided sources do not contain",
+                "sources do not contain",
+                "cannot provide a summary",
+                "I cannot provide",
+                "cannot verify",
+                "no information found",
+                "no verified information",
+                "unable to find",
+                "no sources found",
+                "I'm sorry, but",
+                "does not mention",
+                "not mentioned in",
+                "not present in",
+                "not covered in",
+                "not available in",
+                "not included in"
+            ]
+            response_lower = result_text.lower()
+                # Check if any indicators are present
+            for indicator in no_info_indicators:
+                if indicator.lower() in response_lower:
+                    return {"messages": [AIMessage(content="Not Found")]}
+            # if "not found" in verification_text.lower() or not sources: #
+            #     return {"messages": [AIMessage(content="Not Found")]}
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
         if fetch_latest_articles:
