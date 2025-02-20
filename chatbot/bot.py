@@ -200,6 +200,9 @@ class Chatbot:
         }
 
 
+
+
+
     def call_model(self, state: MessagesState):
         messages = state['messages']
         last_message = messages[-1]
@@ -264,6 +267,29 @@ class Chatbot:
             sources = custom_date_result['sources']
             formatted_sources = "\n\nSources:\n" + "\n".join(sources) if sources else "\n\n"
 
+
+
+            
+            verification_prompt = f"""
+            Analyze the following text and determine whether it explicitly states that there is no verified information available.
+
+            - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
+            - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
+            - Ignore any extra information such as disclaimers, general advice, or calls for verification.
+
+            Text to analyze:
+            "{result_text}"
+            """
+
+            verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
+            verification_text = verification_result.content.strip().lower()
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+            print(enhanced_query,verification_text.lower())
+            print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
+
+            if "not found" in verification_text.lower() or not sources: #
+                return {"messages": [AIMessage(content="Not Found")]}
             return {"messages": [AIMessage(content=f"{result_text}{formatted_sources}")]}
 
         if fetch_latest_articles:
@@ -750,6 +776,7 @@ class Chatbot:
 
 
 
+
     def refine_query_for_vector_search(self, query: str, context_type: str = "all") -> dict:
         """
         Enhanced query refinement using LLM for better vector search results.
@@ -827,6 +854,7 @@ class Chatbot:
         # Apply the enhanced query in your retrieve_data method
         return search_params
     
+
 
 
 
@@ -946,6 +974,9 @@ class Chatbot:
 
 
 
+
+
+
     def call_tool(self):
         rag_tool = StructuredTool.from_function(
             func=self.retrieve_data,
@@ -955,6 +986,8 @@ class Chatbot:
         )
         self.tool_node = ToolNode(tools=[rag_tool])
         self.llm_with_tool = self.llm.bind_tools([rag_tool])
+
+
 
 
 
