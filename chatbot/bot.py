@@ -840,6 +840,7 @@ class Chatbot:
             f"Focus on providing concise and relevant details without additional disclaimers or unrelated remarks.\n\n"
             f"For each summary, list the original article URL explicitly under the summary.\n"
             f"Format: \n**Article Title Mentioned in Article Should be added dynalically:**\nYour summary here\n\n[Read more](Original article URL here)\n"
+            f"<hr>\n"  # This ensures an actual HTML horizontal rule
             f"Prevent adding emojis in response"
         )
 
