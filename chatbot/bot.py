@@ -90,7 +90,8 @@ class Chatbot:
                 "no direct sources",
                 "no sources",
                 "couldn't find",
-                "does not appear to have any relevant sources"
+                "does not appear to have any relevant sources",
+                "no relevant"
             ]
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
@@ -363,7 +364,8 @@ class Chatbot:
                 "no direct sources",
                 "no sources",
                 "couldn't find",
-                "does not appear to have any relevant sources"
+                "does not appear to have any relevant sources",
+                "no relevant"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -514,7 +516,8 @@ class Chatbot:
                 "no direct sources",
                 "no sources",
                 "couldn't find",
-                "does not appear to have any relevant sources"
+                "does not appear to have any relevant sources",
+                "no relevant"
             ]
             response_lower = result_text.lower()
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
