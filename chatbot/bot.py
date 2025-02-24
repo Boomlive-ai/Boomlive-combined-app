@@ -315,7 +315,8 @@ class Chatbot:
                 "there is no specific information",
                 "isn't specific",
                 "not supported by available data",
-                "no available data"
+                "no available data",
+                "No articles were found"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -457,7 +458,8 @@ class Chatbot:
                 "there is no specific information",
                 "isn't specific",
                 "not supported by available data",
-                "no available data"
+                "no available data",
+                "No articles were found"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
