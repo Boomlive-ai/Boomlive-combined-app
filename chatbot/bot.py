@@ -250,7 +250,7 @@ class Chatbot:
             - Do **not** include a separate "Answer to the Query" heading.
             - If articles exist, list them as markdown links.
             - If no articles are found, guide the user to the tag page.
-
+            - Dont Provide any unneccesary articles or context just tell user we didn't found the information
             **Related Articles:**  
             {related_articles_section}
             """
@@ -566,7 +566,7 @@ class Chatbot:
 # Check for tag-based queries with trending tags context
         tag_analysis_prompt = f"""
         You are an AI assistant for BoomLive. BoomLive maintains trending tags at https://www.boomlive.in/trending-tags.
-        Each tag can be accessed via the URL pattern: https://www.boomlive.in/search?search={{tagName}}.
+        Each tag can be accessed via the URL pattern: https://www.boomlive.in/tags/{{tagName}}.
 
         **Your Task:**
         Determine if the user query explicitly asks for fact-checks, explainers, or articles related to a specific tag.
