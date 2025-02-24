@@ -50,7 +50,7 @@ class Chatbot:
         current_date = datetime.now().strftime("%B %d, %Y")
         self.system_message = SystemMessage(
             content=(
-                    "You are BoomLive AI, an expert chatbot designed to answer questions related to BoomLive's fact-checks, articles, reports, and data analysis. "
+                    "You are BoomLive AI, an expert chatbot designed to answer questions related to BOOM's fact-checks, articles, reports, and data analysis. "
                     "Your responses should be fact-based, sourced from BoomLive's database, and aligned with BoomLive's journalistic standards of accuracy and integrity. "
                     "Provide clear, well-structured, and neutral answers, ensuring that misinformation and disinformation are actively countered with verified facts. "
                     "Website: [BoomLive](https://boomlive.in/). "
@@ -58,8 +58,40 @@ class Chatbot:
                     f"Note: Today's date is {current_date}."
                     f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
                     f"Please do not forget to add emojis to make response user friendly"
+                    f"Make sure you are using BOOM and not Boomlive in Response"
                 )
         )
+        self.no_info_indicators = [
+                "provided sources do not contain",
+                "sources do not contain",
+                "cannot provide a summary",
+                "I cannot provide",
+                "cannot verify",
+                "no information found",
+                "no verified information",
+                "unable to find",
+                "no sources found",
+                "I'm sorry, but",
+                "does not mention",
+                "not mentioned in",
+                "not present in",
+                "not covered in",
+                "not available in",
+                "not included in",
+                "there is no specific information",
+                "isn't specific",
+                "not supported by available data",
+                "no available data",
+                "No articles were found",
+                "Relevant sources for this specific query were not found",
+                "not found",
+                "no specific source",
+                "no specific",
+                "no direct sources",
+                "no sources",
+                "couldn't find",
+                "does not appear to have any relevant sources"
+            ]
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
 
@@ -239,7 +271,7 @@ class Chatbot:
                 )
             else:
                 print("No Article FOUND IN USE_TAG", tag_url)
-                related_articles_section = f"For more fact-checks and articles on this topic,[Click Here](https://www.boomlive.in/fact-check)."
+                related_articles_section = f"For more details, Visit [BOOM's Fact Check](https://www.boomlive.in/fact-check) 🕵️‍♂️✨."
             print("related_articles_section", related_articles_section)
             # Create a refined prompt without an explicit "Answer to the Query" section
             tag_prompt = f"""
@@ -252,7 +284,7 @@ class Chatbot:
             - Summarize key points concisely.
             - Do **not** include a separate "Answer to the Query" heading.
             - If articles exist, list them as markdown links.
-            - If no articles are found, guide the user to the fact check page.
+            - If no articles are found,return Not Found.
             - Prefer {article_type} Articles to be shown in response 
             **Related Articles:**  
             {related_articles_section}
@@ -260,7 +292,11 @@ class Chatbot:
 
             # Get response from LLM
             tag_response = self.llm.invoke([self.system_message, HumanMessage(content=tag_prompt)])
-
+            response_lower = tag_response.content.lower()
+                # Check if any indicators are present
+            for indicator in self.no_info_indicators:
+                if indicator.lower() in response_lower:
+                    return {"messages": [AIMessage(content="Not Found")]}
             return {"messages": [AIMessage(content=tag_response.content)]}
         if custom_date_range:
             print("YES IT IS USING CUSTOM DATE RANGE FEATURE")
@@ -520,7 +556,7 @@ class Chatbot:
         
         verification_prompt = f"""
         Analyze the following text and determine whether it explicitly states that there is no verified information available.
-        - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BoomLive, reply with ONLY: **"Not Found"**.
+        - If the text explicitly states that there is **no verified information** on the topic or indirectly say that there is no relevat information on topic or there is no verified report from BOOM, reply with ONLY: **"Not Found"**.
         - If the text confirms or provides **any verified information**, reply with ONLY: **"Verified"**.
         - Ignore any extra information such as disclaimers, general advice, greetings meessages .
         - if response is some greetings then mark reply with ONLY: **"Verified"**
@@ -573,7 +609,7 @@ class Chatbot:
 
 # Check for tag-based queries with trending tags context
         tag_analysis_prompt = f"""
-        You are an AI assistant for BoomLive. BoomLive maintains trending tags at https://www.boomlive.in/trending-tags.
+        You are an AI assistant for BOOM. BOOM maintains trending tags at https://www.boomlive.in/trending-tags.
         Each tag can be accessed via the URL pattern: https://www.boomlive.in/search?search={{tagName}}.
 
         **Your Task:**
@@ -582,11 +618,12 @@ class Chatbot:
         **Query:** "{enhanced_query}"
 
         **Conditions for it to be a tag-based query (IS_TAG_QUERY = yes):**
+        - Query shouldn't be asking for fact check on specific claim
+        - Query should be asking for fact check on any person, place.
         - Examples of valid queries:
-        - "Provide fact-checks on Narendra Modi."
-        - "Fact Checks on Rahul Gandhi"
-        - "Provide Fact Checks on Nirmala Sitaraman"
-
+            - "Provide fact-checks on Narendra Modi."
+            - "Fact Checks on Rahul Gandhi"
+            - "Provide Fact Checks on Nirmala Sitaraman"
         **Output Format:**
         IS_TAG_QUERY: <yes/no>
         TAG: <extracted tag> (Only if IS_TAG_QUERY = yes)
@@ -895,12 +932,12 @@ class Chatbot:
         """
         # Create a prompt that helps LLM understand boomlive's context
         refinement_prompt = f"""
-        As an AI specializing in BoomLive's content, help optimize this query for vector search.
+        As an AI specializing in BOOM's content, help optimize this query for vector search.
         Original query: "{query}"
         Context type: {context_type}
 
         Consider these aspects:
-        1. BoomLive's focus on fact-checking and journalism
+        1. BOOM's focus on fact-checking and journalism
         2. Common misinformation patterns
         3. Current affairs and news context
         4. Regional Indian context when relevant
@@ -1027,6 +1064,7 @@ class Chatbot:
             Context:
             {combined_content}
             Also mention if relevant sources are found or not for the query: {query}
+            if no relevant sources are found then reply as Not Found
             """
 
             # Apply date filtering only if it's mentioned
