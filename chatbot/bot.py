@@ -322,7 +322,8 @@ class Chatbot:
                 "no specific source",
                 "no specific",
                 "no direct sources",
-                "no sources"
+                "no sources",
+                "couldn't find"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -470,7 +471,9 @@ class Chatbot:
                 "not found",
                 "no specific source",
                 "no specific",
-                "no direct sources"
+                "no direct sources",
+                "no sources",
+                "couldn't find"
             ]
             response_lower = result_text.lower()
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
