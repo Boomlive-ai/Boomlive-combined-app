@@ -317,43 +317,48 @@ def fetch_page_text(url):
         print(f"Error fetching {url}: {e}")
     return ""
 
-
 import requests
 from bs4 import BeautifulSoup
 
+BASE_URL = "https://www.boomlive.in"
+
 def extract_articles(tag_url):
-    """Fetches and extracts articles from a BoomLive.in tag page."""
+    """Fetch and extract article titles, URLs, and summaries from BoomLive search results."""
     try:
-        response = requests.get(tag_url, timeout=5)
+        response = requests.get(tag_url, timeout=10)
         if response.status_code != 200:
-            return []  # Return empty list if page is missing or inaccessible
-
+            print("Failed to retrieve page, status code:", response.status_code)
+            return []
+        
         soup = BeautifulSoup(response.text, 'html.parser')
-
         articles = []
         
-        # Find all article elements (adjust based on actual HTML structure)
-        for article in soup.find_all("div", class_="card-body"):  # Update selector as needed
-            title_tag = article.find("h3", class_="card-title")
-            link_tag = article.find("a", href=True)
-            summary_tag = article.find("p", class_="card-text")  # Adjust if needed
+        # Select all <a> tags with class "heading_link" inside the section with class "search-page"
+        for link in soup.select("section.search-page a.heading_link"):
+            title = link.get_text(strip=True)
+            url = link.get("href")
+            # Ensure full URL if the link is relative
+            if url and not url.startswith("http"):
+                url = f"{BASE_URL}{url}"
             
-            if title_tag and link_tag:
-                title = title_tag.get_text(strip=True)
-                url = link_tag["href"]
-                summary = summary_tag.get_text(strip=True) if summary_tag else "No summary available."
-
-                # Ensure full URL (BoomLive uses relative links)
-                if not url.startswith("http"):
-                    url = f"https://www.boomlive.in{url}"
-
-                articles.append((title, url, summary))
-
-        return articles  # Returns a list of (title, url, summary)
-
+            # Find the closest parent <h4> and then the next sibling <p> for summary text
+            h4_tag = link.find_parent("h4")
+            if h4_tag:
+                summary_tag = h4_tag.find_next_sibling("p")
+                summary = summary_tag.get_text(strip=True) if summary_tag else "No summary available"
+            else:
+                summary = "No summary available"
+            
+            articles.append((title, url, summary))
+        
+        return articles
+    
     except Exception as e:
-        print(f"Error extracting articles: {e}")
-        return []  # Return empty list on failure
+        print("Error extracting articles:", e)
+        return []
+
+
+
 
 # def prioritize_sources(response_text: str, sources: list) -> list:
 #     """

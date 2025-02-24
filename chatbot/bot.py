@@ -236,7 +236,7 @@ class Chatbot:
                     f"- [{title}]({url}) - {summary}" for title, url, summary in articles
                 )
             else:
-                related_articles_section = f"For more fact-checks and articles on this topic, visit the [BoomLive Tag Page]({tag_url})."
+                related_articles_section = f"For more fact-checks and articles on this topic,[Click Here]({tag_url})."
 
             # Create a refined prompt without an explicit "Answer to the Query" section
             tag_prompt = f"""
@@ -320,7 +320,9 @@ class Chatbot:
                 "Relevant sources for this specific query were not found",
                 "not found",
                 "no specific source",
-                "no specific"
+                "no specific",
+                "no direct sources",
+                "no sources"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -467,7 +469,8 @@ class Chatbot:
                 "Relevant sources for this specific query were not found",
                 "not found",
                 "no specific source",
-                "no specific"
+                "no specific",
+                "no direct sources"
             ]
             response_lower = result_text.lower()
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
@@ -563,7 +566,7 @@ class Chatbot:
 # Check for tag-based queries with trending tags context
         tag_analysis_prompt = f"""
         You are an AI assistant for BoomLive. BoomLive maintains trending tags at https://www.boomlive.in/trending-tags.
-        Each tag can be accessed via the URL pattern: https://www.boomlive.in/tags/{{tagName}}.
+        Each tag can be accessed via the URL pattern: https://www.boomlive.in/search?search={{tagName}}.
 
         **Your Task:**
         Determine if the user query explicitly asks for fact-checks, explainers, or articles related to a specific tag.
@@ -573,8 +576,8 @@ class Chatbot:
         **Conditions for it to be a tag-based query (IS_TAG_QUERY = yes):**
         - Examples of valid queries:
         - "Provide fact-checks on Narendra Modi."
-        - "Show explainers on Rahul Gandhi."
-        - "Give articles on Maharashtra elections."
+        - "Fact Checks on Rahul Gandhi"
+        - "Provide Fact Checks on Nirmala Sitaraman"
 
         **Output Format:**
         IS_TAG_QUERY: <yes/no>
@@ -607,7 +610,7 @@ class Chatbot:
                 "index_to_use": "both",  # Not using indices
                 "article_type": tag_results.get('CONTENT_TYPE', 'all'),
                 "enhanced_query": enhanced_query,
-                "tag_url": f"https://www.boomlive.in/tags/{tag}"  # Direct tag URL reference
+                "tag_url": f"https://www.boomlive.in/search?search={tag}"  # Direct tag URL reference
             }
 
         
