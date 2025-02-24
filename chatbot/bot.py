@@ -459,9 +459,16 @@ class Chatbot:
                 "isn't specific",
                 "not supported by available data",
                 "no available data",
-                "No articles were found"
+                "No articles were found",
+                "Relevant sources for this specific query were not found",
+                "not found",
+                "no specific source"
             ]
             response_lower = result_text.lower()
+            print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+            print(response_lower)
+            print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+
                 # Check if any indicators are present
             for indicator in no_info_indicators:
                 if indicator.lower() in response_lower or not sources:
@@ -1003,6 +1010,7 @@ class Chatbot:
             Sources: {all_sources}
             Context:
             {combined_content}
+            Also mention if relevant sources are found or not for the query: {query}
             """
 
             # Apply date filtering only if it's mentioned
