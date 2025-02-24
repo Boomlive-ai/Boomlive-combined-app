@@ -226,18 +226,21 @@ class Chatbot:
         if use_tag:
             tag_url = mediation_result["tag_url"]
             print("TAG_URL", tag_url)
+            article_type = mediation_result["article_type"]
 
             # Extract real articles from BoomLive.in
             articles = extract_articles(tag_url)  # Returns a list of (title, url, summary)
 
             # Format articles correctly (if available)
             if articles:
+                print("Articles ARE FOUND IN USE_TAG", articles)
                 related_articles_section = "\n".join(
                     f"- [{title}]({url}) - {summary}" for title, url, summary in articles
                 )
             else:
-                related_articles_section = f"For more fact-checks and articles on this topic,[Click Here]({tag_url})."
-
+                print("No Article FOUND IN USE_TAG", tag_url)
+                related_articles_section = f"For more fact-checks and articles on this topic,[Click Here](https://www.boomlive.in/fact-check)."
+            print("related_articles_section", related_articles_section)
             # Create a refined prompt without an explicit "Answer to the Query" section
             tag_prompt = f"""
             You are an AI assistant analyzing news articles from BoomLive.in. Your task is to generate an informative response based on verified articles from the given tag.
@@ -249,8 +252,8 @@ class Chatbot:
             - Summarize key points concisely.
             - Do **not** include a separate "Answer to the Query" heading.
             - If articles exist, list them as markdown links.
-            - If no articles are found, guide the user to the tag page.
-            - Dont Provide any unneccesary articles or context just tell user we didn't found the information
+            - If no articles are found, guide the user to the fact check page.
+            - Prefer {article_type} Articles to be shown in response 
             **Related Articles:**  
             {related_articles_section}
             """
@@ -569,7 +572,7 @@ class Chatbot:
 # Check for tag-based queries with trending tags context
         tag_analysis_prompt = f"""
         You are an AI assistant for BoomLive. BoomLive maintains trending tags at https://www.boomlive.in/trending-tags.
-        Each tag can be accessed via the URL pattern: https://www.boomlive.in/tags/{{tagName}}.
+        Each tag can be accessed via the URL pattern: https://www.boomlive.in/search?search={{tagName}}.
 
         **Your Task:**
         Determine if the user query explicitly asks for fact-checks, explainers, or articles related to a specific tag.
