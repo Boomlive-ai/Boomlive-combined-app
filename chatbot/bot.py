@@ -316,7 +316,11 @@ class Chatbot:
                 "isn't specific",
                 "not supported by available data",
                 "no available data",
-                "No articles were found"
+                "No articles were found",
+                "Relevant sources for this specific query were not found",
+                "not found",
+                "no specific source",
+                "no specific"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -438,7 +442,7 @@ class Chatbot:
             # verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
             # verification_text = verification_result.content.strip()
 
-            no_info_indicators = [
+                no_info_indicators = [
                 "provided sources do not contain",
                 "sources do not contain",
                 "cannot provide a summary",
@@ -462,7 +466,8 @@ class Chatbot:
                 "No articles were found",
                 "Relevant sources for this specific query were not found",
                 "not found",
-                "no specific source"
+                "no specific source",
+                "no specific"
             ]
             response_lower = result_text.lower()
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
