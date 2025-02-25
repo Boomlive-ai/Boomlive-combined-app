@@ -701,7 +701,7 @@ class Chatbot:
         decision_prompt = (
             f"Analyze the following query and answer:\n"
             f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.Note if the query is about any specific recent topic or **claim** then respond with 'no' and the word 'latest' is only used\n"
-            f"2. Should this query use the RAG tool and  if user is asking any question, claim or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
+            f"2. Should this query use the RAG tool and  if user is asking any question, claim or any general topic or has question mark '?' Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
             f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all. If query has boom-report then it is boom-research"
