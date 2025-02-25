@@ -92,7 +92,9 @@ class Chatbot:
                 "couldn't find",
                 "does not appear to have any relevant sources",
                 "no relevant",
-                "no factual basis"
+                "no factual basis",
+                "not supported by any verified sources",
+                "not supported by any relevant sources"
             ]
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
@@ -390,7 +392,7 @@ class Chatbot:
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
-            for indicator in no_info_indicators:
+            for indicator in self.no_info_indicators:
                 if indicator.lower() in response_lower:
                     return {"messages": [AIMessage(content="Not Found")]}
             # if "not found" in verification_text.lower() or not sources: #
@@ -547,7 +549,7 @@ class Chatbot:
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 
                 # Check if any indicators are present
-            for indicator in no_info_indicators:
+            for indicator in self.no_info_indicators:
                 if indicator.lower() in response_lower or not sources:
                     return {"messages": [AIMessage(content="Not Found")]}
             # verification_prompt = f"""
