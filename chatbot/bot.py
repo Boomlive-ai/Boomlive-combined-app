@@ -94,7 +94,9 @@ class Chatbot:
                 "no relevant",
                 "no factual basis",
                 "not supported by any verified sources",
-                "not supported by any relevant sources"
+                "not supported by any relevant sources",
+                "does not have any relevant sources",
+                "does not have any verified sources"
             ]
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
