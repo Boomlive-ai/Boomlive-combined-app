@@ -705,7 +705,7 @@ class Chatbot:
         decision_prompt = (
             f"Analyze the following query and answer:\n"
             f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.Note if the query is about any specific recent topic or **claim** then respond with 'no'\n"
-            f"2. Should this query use the RAG tool and  if user is asking any question, claim or any general topic or has question mark '?' Eg: Modi? Respond with 'yes' or 'no'.\n"
+            f"2. Should this query use the RAG tool and  if user is asking any question, claim or incident Eg: Modi? Respond with 'yes' or if question is genral greetings or anything random Respond with 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
             f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all. If query has boom-report then it is boom-research"
@@ -714,12 +714,16 @@ class Chatbot:
         
         decision = self.llm.invoke([HumanMessage(content=decision_prompt)])
         response_lines = decision.content.strip().split("\n")
-
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@response_lines@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        print(response_lines, type(response_lines))
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@response_lines@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
         # Parse decisions
         fetch_latest_articles = "yes" in response_lines[0].lower()
         use_rag = "yes" in response_lines[1].lower()
         index_to_use = response_lines[2].strip()
         custom_date_range = "yes" in response_lines[3].lower()
+
+        print(fetch_latest_articles, use_rag, index_to_use, custom_date_range)
             # Safely access the article_type
         if len(response_lines) > 4:
             article_type = re.sub(r'^\d+[\.\s]*', '', response_lines[4].strip()).lower()
@@ -768,7 +772,7 @@ class Chatbot:
         if is_fact_check:
             return {
                 "fetch_latest_articles": False,  # Skip fetching articles if fact-checking
-                "use_rag": True,  # Always use RAG for fact-checking queries
+                "use_rag": use_rag,  # Always use RAG for fact-checking queries
                 "use_tag": False,
                 "custom_date_range": False,
                 "index_to_use": "both",  # Check both indexes for relevant data (latest and old)
