@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from chatbot.bot import Chatbot
-from chatbot.utils import extract_sources_and_result, prioritize_sources
+from chatbot.utils import extract_sources_and_result, prioritize_sources, is_url
 from langchain_core.messages import HumanMessage
 from chatbot.tools import fetch_questions_on_latest_articles_in_Boomlive, fetch_articles_based_on_articletype
 from chatbot.vectorstore import StoreCustomRangeArticles, StoreDailyArticles
@@ -33,9 +33,12 @@ def query_bot():
     question = request.args.get('question', '').strip()
     thread_id = request.args.get('thread_id')
     sources = []
+    print("THIS IS QUESTION IN QUERY BOT", question)
     if not question or not thread_id:
         return jsonify({"error": "Missing required parameters"}), 400
-    
+    if is_url(question):
+        print("YES WE JUST DETECTED A URL", question)
+        question = "Please verify the content: " + question
     if not question.endswith('?'):
         question += '?'
     input_data = {"messages": [HumanMessage(content=question)]}

@@ -2,6 +2,207 @@ import re, json
 from langchain_core.messages import HumanMessage
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from collections import Counter
+
+
+import requests
+from bs4 import BeautifulSoup
+import re
+from urllib.parse import urlparse
+import json
+import time
+from random import randint
+
+def extract_description_as_keywords(url):
+    """
+    Extracts meta description from any URL and returns it as keywords.
+    Works for social media posts, articles, blogs, and general websites.
+    
+    Args:
+        url (str): The URL to extract metadata from
+        
+    Returns:
+        list: List of keywords extracted from the description
+    """
+    try:
+        # Configure request with browser-like headers
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Referer': 'https://www.google.com/',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
+        }
+        
+        # Add cookies for sites that may require them
+        cookies = {
+            'locale': 'en_US',
+        }
+        
+        # Get domain for site-specific handling
+        domain = urlparse(url).netloc.lower()
+        
+        # Make the request with a small delay to avoid rate limiting
+        time.sleep(randint(1, 3) / 10)  # Random delay between 0.1-0.3 seconds
+        response = requests.get(url, headers=headers, cookies=cookies, timeout=15)
+        response.raise_for_status()
+        
+        # Parse HTML
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Initialize description variable
+        description = ""
+        
+        # 1. Try standard meta description
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        if meta_desc and meta_desc.get('content'):
+            description = meta_desc.get('content').strip()
+        
+        # 2. Try Open Graph description
+        if not description:
+            og_desc = soup.find('meta', property='og:description')
+            if og_desc and og_desc.get('content'):
+                description = og_desc.get('content').strip()
+        
+        # 3. Try Twitter description
+        if not description:
+            twitter_desc = soup.find('meta', attrs={'name': 'twitter:description'})
+            if twitter_desc and twitter_desc.get('content'):
+                description = twitter_desc.get('content').strip()
+        
+        # 4. Social media-specific handling
+        if not description:
+            # Instagram
+            if 'instagram.com' in domain:
+                # Try Instagram-specific extraction
+                for script in soup.find_all('script'):
+                    if script.string and 'window._sharedData' in script.string:
+                        try:
+                            json_str = script.string.split('window._sharedData = ')[1].split(';</script>')[0]
+                            data = json.loads(json_str)
+                            
+                            if 'entry_data' in data:
+                                if 'PostPage' in data['entry_data'] and data['entry_data']['PostPage']:
+                                    post = data['entry_data']['PostPage'][0]['graphql']['shortcode_media']
+                                    
+                                    if 'edge_media_to_caption' in post and post['edge_media_to_caption']['edges']:
+                                        description = post['edge_media_to_caption']['edges'][0]['node']['text']
+                        except:
+                            pass
+                
+                # Try alternative Instagram extraction
+                if not description:
+                    meta_content = soup.find('meta', property='og:description')
+                    if meta_content and meta_content.get('content'):
+                        content = meta_content.get('content')
+                        parts = content.split(':')
+                        if len(parts) > 1:
+                            description = ':'.join(parts[1:]).strip()
+            
+            # Twitter/X
+            elif 'twitter.com' in domain or 'x.com' in domain:
+                tweet_div = soup.find('div', attrs={'data-testid': 'tweetText'})
+                if tweet_div:
+                    description = tweet_div.get_text().strip()
+            
+            # Facebook
+            elif 'facebook.com' in domain:
+                post_content = soup.find('div', attrs={'data-testid': 'post_message'})
+                if post_content:
+                    description = post_content.get_text().strip()
+        
+        # 5. JSON-LD structured data
+        if not description:
+            for script in soup.find_all('script', type='application/ld+json'):
+                if script.string:
+                    try:
+                        json_data = json.loads(script.string)
+                        
+                        # Handle both direct objects and arrays of objects
+                        json_items = json_data if isinstance(json_data, list) else [json_data]
+                        
+                        for item in json_items:
+                            if item.get('description'):
+                                description = item.get('description')
+                                break
+                            
+                            # Extract articleBody if available
+                            if 'articleBody' in item:
+                                body = item['articleBody']
+                                if isinstance(body, str):
+                                    description = body[:200] + ('...' if len(body) > 200 else '')
+                                    break
+                    except:
+                        continue
+        
+        # 6. Content fallback - look for article content if no description found
+        if not description:
+            # Find the main article content
+            article_element = soup.find(['article', 'main', 'div'], class_=lambda x: x and any(c in str(x).lower() for c in ['article', 'content', 'story', 'post']))
+            
+            if article_element:
+                # Find the main content paragraphs
+                paragraphs = article_element.find_all('p')
+                if paragraphs:
+                    # Get the first few paragraphs, skipping very short ones
+                    content_paragraphs = [p.get_text().strip() for p in paragraphs if len(p.get_text().strip()) > 40][:2]
+                    if content_paragraphs:
+                        # Take first 200 chars combined from the first few substantive paragraphs
+                        combined = ' '.join(content_paragraphs)
+                        description = combined[:200] + ('...' if len(combined) > 200 else '')
+        
+        # 7. Last resort fallback - use any meaningful paragraph
+        if not description:
+            paragraphs = [p.get_text().strip() for p in soup.find_all('p') if len(p.get_text().strip()) > 40]
+            if paragraphs:
+                # Sort by length and take the longest one
+                longest_paragraph = sorted(paragraphs, key=len, reverse=True)[0]
+                description = longest_paragraph[:200] + ('...' if len(longest_paragraph) > 200 else '')
+        
+        # Clean up the description
+        if description:
+            # Remove excess whitespace, newlines
+            description = re.sub(r'\s+', ' ', description).strip()
+        
+        # Extract keywords from description
+        keywords = []
+        if description:
+            # Method 1: Split by punctuation and get phrases
+            phrases = re.split(r'[.!?;,]', description)
+            phrases = [phrase.strip() for phrase in phrases if len(phrase.strip()) > 3]
+            keywords.extend(phrases[:5])  # Add up to 5 phrases
+            
+            # Method 2: Extract important words (excluding common words)
+            common_words = {'the', 'a', 'an', 'and', 'is', 'are', 'was', 'were', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'as', 'this', 'that', 'these', 'those', 'it', 'its'}
+            words = re.findall(r'\b\w+\b', description.lower())
+            important_words = [word for word in words if len(word) > 3 and word not in common_words]
+            
+            # Get the most frequent important words
+            word_freq = {}
+            for word in important_words:
+                word_freq[word] = word_freq.get(word, 0) + 1
+            
+            sorted_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)
+            keywords.extend([word for word, freq in sorted_words[:10]])  # Add top 10 words
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            keywords = [x for x in keywords if not (x.lower() in seen or seen.add(x.lower()))]
+        
+        return keywords
+        
+    except Exception as e:
+        print(f"Error extracting description as keywords: {e}")
+        return []
+
+# Example usage
+# keywords = extract_description_as_keywords("https://example.com/article")
+# print(keywords)
+    
+
 
 # def prioritize_sources(response_text: str, sources: list) -> list:
 #     """
@@ -890,3 +1091,12 @@ async def add_urls_to_database(urls):
             return f"There are no urls to add"
     except requests.RequestException as e:
         return f"An error occurred while adding URLs: {e}"
+    
+from urllib.parse import urlparse
+
+def is_url(input_string):
+    try:
+        result = urlparse(input_string)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False

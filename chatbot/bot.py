@@ -1,6 +1,6 @@
 import os,requests
 from bs4 import BeautifulSoup
-from chatbot.utils import fetch_page_text, verify_sources, get_most_suitable_source, extract_articles
+from chatbot.utils import fetch_page_text, verify_sources, get_most_suitable_source, extract_articles, extract_description_as_keywords
 import datetime
 from typing import Literal
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -91,7 +91,8 @@ class Chatbot:
                 "no sources",
                 "couldn't find",
                 "does not appear to have any relevant sources",
-                "no relevant"
+                "no relevant",
+                "no factual basis"
             ]
         # External API for latest articles
         # self.latest_articles_api = fetch_latest_article_urls()
@@ -113,8 +114,21 @@ class Chatbot:
         else:
             original_query = original_query
 
+        # Detect if query contains a URL
+        url_pattern = r'https?://[^\s]+'  # Simple URL regex
+        urls = re.findall(url_pattern, original_query)
+
+        extracted_keywords = []
+        if urls:
+            print("FOUND URLS IN QUERY", urls)
+            for url in urls:
+                extracted_keywords.extend(extract_description_as_keywords(url))
+
         enhanced_query = re.sub(r'\bboom\s+report\b', 'BOOM Research Report', original_query, flags=re.IGNORECASE)
 
+        if extracted_keywords:
+            print("EXTRACTED KEYWORDS IN URLS", extracted_keywords)
+            enhanced_query += " " + " ".join(extracted_keywords)  # Append extracted keywords to query
         # First, detect key patterns that strongly indicate specific tools
         patterns = {
             'boom_report': r'\b(?:boom|monthly|weekly)\s+report\b',
@@ -169,6 +183,12 @@ class Chatbot:
         - If recent, latest, current keywords are present in query are asked it should put primary_tool as **LATEST_ARTICLES**
 
         Note 5th point is important
+
+
+        6. URL Handling (if provided in query):
+        - Extract keywords from the URL content.
+        - Incorporate relevant keywords into the ENHANCED_QUERY.
+        - Use extracted keywords to refine PRIMARY_TOOL selection.
         Provide structured analysis:
         1. PRIMARY_TOOL: [LATEST_ARTICLES, CUSTOM_DATE_RETRIEVER, RAG]
         2. CONFIDENCE: [HIGH, MEDIUM, LOW]
@@ -365,7 +385,8 @@ class Chatbot:
                 "no sources",
                 "couldn't find",
                 "does not appear to have any relevant sources",
-                "no relevant"
+                "no relevant",
+                "no factual basis"
             ]
             response_lower = result_text.lower()
                 # Check if any indicators are present
@@ -517,7 +538,8 @@ class Chatbot:
                 "no sources",
                 "couldn't find",
                 "does not appear to have any relevant sources",
-                "no relevant"
+                "no relevant",
+                "no factual basis"
             ]
             response_lower = result_text.lower()
             print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
@@ -678,8 +700,8 @@ class Chatbot:
         # Otherwise, decide based on the query content
         decision_prompt = (
             f"Analyze the following query and answer:\n"
-            f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.Note if the query is about any specific recent topic then respond with 'no'\n"
-            f"2. Should this query use the RAG tool and  if user is asking any question or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
+            f"1. Is the query asking for the latest articles,latest news,latest fact checks,latest explainers,latest updates, or latest general information without specifying a specific topic and having the word latest? Respond with 'yes' or 'no'.Note if the query is about any specific recent topic or **claim** then respond with 'no' and the word 'latest' is only used\n"
+            f"2. Should this query use the RAG tool and  if user is asking any question, claim or any general topic Eg: Modi? Respond with 'yes' or 'no'.\n"
             f"3. If RAG is required, indicate whether the latest or old data index should be used. Respond with 'latest', 'old', or 'both'.\n\n"
             f"4. Does the query contain a custom date range or timeframe (e.g., 'from 2024-01-01 to 2024-12-31', 'this month', 'last week', etc.) or something like this Eg: factcheck from dec 2024 or explainers from 2024, if it is anything related to date, month or year? Respond with 'yes' or 'no'.\n\n"
             f"5. Does the query inlcudes any one keyword from this list: fact-check, law, explainers, decode, mediabuddhi, web-stories, boom-research, deepfake-tracker. Provide one keyword from the list if present or related to any word in keyword, if it is not related to any return all. If query has boom-report then it is boom-research"
