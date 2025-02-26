@@ -105,3 +105,5 @@
     textblob==0.19.0
     deep-translator==1.11.4
     langdetect==1.0.9
+    iso639-lang==2.6.0
+    pycountry==24.6.1

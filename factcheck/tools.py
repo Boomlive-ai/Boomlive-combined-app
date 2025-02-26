@@ -8,15 +8,53 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import create_retrieval_chain
 from dotenv import load_dotenv
+from langdetect import detect, LangDetectException
+import iso639
+import pycountry
 
 llm = ChatOpenAI(temperature=0, model_name='gpt-4o')
 load_dotenv()
 
+def get_language_code(text):
+    """
+    Detects language and returns ISO 639-1 two-letter language code.
+    Falls back to character-based detection for certain scripts.
+    
+    Args:
+        text (str): Text to detect language from
+        
+    Returns:
+        str: Two-letter ISO 639-1 language code
+    """
+    try:
+        # Try with langdetect first
+        detected_code = detect(text)
+        
+        # Validate the detected code against pycountry
+        try:
+            language = pycountry.languages.get(alpha_2=detected_code)
+            return detected_code
+        except (AttributeError, KeyError):
+            # If pycountry doesn't recognize it, fall back to default language
+            pass
+            
+        return detected_code
+    except LangDetectException:
+        # If langdetect fails, default to English
+        return 'en'
+    
 
 def FactCheck(query):
+
+    lang_code = get_language_code(query)
+
+    print(f"Detected language: {lang_code}")
+
+
     payload = {
     'key':  os.getenv("GOOGLE_FACT_CHECK_TOOL_API"),
-    'query':query
+    'query':query,
+    'languageCode':lang_code
     }
     url ='https://factchecktools.googleapis.com/v1alpha1/claims:search'
     response = requests.get(url,params=payload)
