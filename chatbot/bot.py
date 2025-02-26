@@ -1098,7 +1098,7 @@ class Chatbot:
             Sources: {all_sources}
             Context:
             {combined_content}
-            Also mention if relevant sources are found or not for the query: {query}
+            Also mention if relevant sources are found or not for the query, but do not mention the query provided: {query}
             if no relevant sources are found then reply as Not Found
             """
 
