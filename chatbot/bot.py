@@ -1099,7 +1099,7 @@ class Chatbot:
             Context:
             {combined_content}
             Also mention if relevant sources are found or not for the query, but do not mention the query provided: {query}
-            **if exact sources are found for the query: {query} then reply as Not Found**
+            **if exact sources are not found for the query: {query} then reply as Not Found**
             """
 
             # Apply date filtering only if it's mentioned
