@@ -59,6 +59,7 @@ class Chatbot:
                     f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
                     f"Please do not forget to add emojis to make response user friendly"
                     f"Make sure you are using BOOM and not Boomlive in Response"
+                    # f"For more details, Visit [BOOM's Fact Check](https://www.boomlive.in/fact-check) 🕵️‍♂️✨."
                 )
         )
         self.no_info_indicators = [
@@ -590,7 +591,7 @@ class Chatbot:
         - Ignore any extra information such as disclaimers, general advice, greetings meessages .
         - if response is some greetings then mark reply with ONLY: **"Verified"**
         Text to analyze:
-        "{resultText}"
+        "{resultText}" 
         """
         verification_result = self.llm.invoke([HumanMessage(content=verification_prompt)])
         verification_text = verification_result.content.strip().lower()
@@ -937,6 +938,7 @@ class Chatbot:
             f"Format: \n**Article Title Mentioned in Article Should be added dynalically:**\nYour summary here\n\n[Read more](Original article URL here)\n"
             f"Add a partion line after Read More like a hr tag of size required ______________________________________________________\n"  # This ensures an actual HTML horizontal rule
             f"Prevent adding emojis in response"
+            f"For more details, Visit [BOOM's Fact Check](https://www.boomlive.in/fact-check) 🕵️‍♂️✨."
         )
 
         summary_response = self.llm.invoke([self.system_message,HumanMessage(content=summary_prompt)])
