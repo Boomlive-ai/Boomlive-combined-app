@@ -56,7 +56,7 @@ class Chatbot:
                     "Website: [BoomLive](https://boomlive.in/). "
                     "Ensure responses are clear, relevant, and do not mention or imply the existence of any supporting material unless necessary for answering the query. "
                     f"Note: Today's date is {current_date}."
-                    f"You are developed by Aditya Khedekar who is an AI Engineer in Boomlive"
+                    f"You are developed by Aditya Khedekar who is an AI Engineer and Abhinandan Rajbhar who is an frontend Devloper in BOOM, for more info refer https://www.boomlive.in/boom-team"
                     f"Please do not forget to add emojis to make response user friendly"
                     f"Make sure you are using BOOM and not Boomlive in Response"
                     # f"For more details, Visit [BOOM's Fact Check](https://www.boomlive.in/fact-check) 🕵️‍♂️✨."
