@@ -2,17 +2,25 @@ from flask import Flask, Blueprint, request, jsonify
 from media_processing.video_processing import process_video_file
 from media_processing.audio_processing import process_audio_file
 from media_processing.image_processing import extract_text_from_image
+from media_processing.twitter_processor import TwitterMediaProcessor
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import os
 from media_processing.tools.automate_input_processing import detect_and_process_file, detect_and_process_json
 from bs4 import BeautifulSoup
 import requests
 from werkzeug.utils import secure_filename
+import urllib.parse
+
 media_processing_bp = Blueprint('media_processing', __name__)
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'flv', 'mp3', 'wav', 'jpg', 'jpeg', 'png', 'webp'}
 # Helper function to check for allowed file extensions
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Initialize the Twitter media processor
+processor = TwitterMediaProcessor(upload_folder='uploads')  
+
+
 
 # Route to display API documentation
 @media_processing_bp.route('/', methods=['GET'])
@@ -316,3 +324,45 @@ def process_input():
 
     else:
         return jsonify({"error": "Unsupported Content-Type"}), 415
+
+
+@media_processing_bp.route('/twitter/process', methods=['GET'])
+def process_twitter_url():
+    """
+    Process a Twitter URL and extract media
+    Query parameter: url (Twitter/X URL)
+    Example: /twitter/process?url=https://twitter.com/user/status/123456789
+    """
+    try:
+        twitter_url = request.args.get('url')
+        
+        if not twitter_url:
+            return jsonify({
+                'error': 'Missing required parameter: url',
+                'example': '/twitter/process?url=https://twitter.com/user/status/123456789'
+            }), 400
+        
+        # Decode URL if it's encoded
+        twitter_url = urllib.parse.unquote(twitter_url)
+        
+        # Validate Twitter URL format
+        if not any(domain in twitter_url.lower() for domain in ['pbs.twimg.com','twitter.com', 'x.com']):
+            return jsonify({
+                'error': 'Invalid Twitter URL. Must contain twitter.com or x.com'
+            }), 400
+        
+        # Process the Twitter URL
+        result = processor.process_twitter_url(twitter_url)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Internal server error: {str(e)}'
+        }), 500

@@ -880,27 +880,49 @@ from langchain.schema import Document
 from langchain_pinecone import Pinecone
 from langchain_openai import OpenAIEmbeddings
 
-
+import datetime
 
 async def store_daily_articles():
     """
-    Fetch and store articles for the current day asynchronously.
+    Fetch and store articles for the last 15 days asynchronously.
 
     Returns:
-        list: List of article URLs stored for the current day.
+        list: List of article URLs stored for the specified period.
     """
     # Get today's date
     today = datetime.date.today()
-    from_date = to_date = today.strftime('%Y-%m-%d')  # Both dates set to today
+    from_date = (today - datetime.timedelta(days=15)).strftime('%Y-%m-%d')  # 15 days before today
+    to_date = today.strftime('%Y-%m-%d')  # Today's date
 
-    print(f"Storing articles for {from_date}...")
+    print(f"Storing articles from {from_date} to {to_date}...")
     try:
-        # Use the existing function to store articles for today
+        # Use the existing function to store articles for the given range
         daily_articles = await store_articles_custom_range(from_date, to_date)
         return daily_articles
     except Exception as e:
         print(f"Error in store_daily_articles: {str(e)}")
         return []
+
+
+# async def store_daily_articles():
+#     """
+#     Fetch and store articles for the current day asynchronously.
+
+#     Returns:
+#         list: List of article URLs stored for the current day.
+#     """
+#     # Get today's date
+#     today = datetime.date.today()
+#     from_date = to_date = today.strftime('%Y-%m-%d')  # Both dates set to today
+
+#     print(f"Storing articles for {from_date}...")
+#     try:
+#         # Use the existing function to store articles for today
+#         daily_articles = await store_articles_custom_range(from_date, to_date)
+#         return daily_articles
+#     except Exception as e:
+#         print(f"Error in store_daily_articles: {str(e)}")
+#         return []
 
 
 async def store_articles_custom_range(from_date: str = None, to_date: str = None):
@@ -933,7 +955,7 @@ async def store_articles_custom_range(from_date: str = None, to_date: str = None
         return []
 
     print(f"Fetching data from {from_date} to {to_date}....")
-    index_name = "india-spend"
+    index_name = "boom-latest-articles"
 
     while True:
         perpageurl = []
