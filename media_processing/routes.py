@@ -346,10 +346,10 @@ def process_twitter_url():
         twitter_url = urllib.parse.unquote(twitter_url)
         
         # Validate Twitter URL format
-        if not any(domain in twitter_url.lower() for domain in ['pbs.twimg.com','twitter.com', 'x.com']):
-            return jsonify({
-                'error': 'Invalid Twitter URL. Must contain twitter.com or x.com'
-            }), 400
+        # if not any(domain in twitter_url.lower() for domain in ['pbs.twimg.com','twitter.com', 'x.com', 'video.twimg.com']):
+        #     return jsonify({
+        #         'error': 'Invalid Twitter URL. Must contain twitter.com or x.com'
+        #     }), 400
         
         # Process the Twitter URL
         result = processor.process_twitter_url(twitter_url)
