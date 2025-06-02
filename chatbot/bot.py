@@ -35,7 +35,7 @@ class RAGQuery(BaseModel):
 class Chatbot:
 
     def __init__(self):
-        self.llm =ChatOpenAI(model_name="gpt-4o", temperature=0)
+        self.llm =ChatOpenAI(model="gpt-4o", temperature=0)
         self.memory = MemorySaver()
 
         # Initialize Pinecone indices
