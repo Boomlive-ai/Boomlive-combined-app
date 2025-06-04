@@ -3,6 +3,7 @@ from media_processing.video_processing import process_video_file
 from media_processing.audio_processing import process_audio_file
 from media_processing.image_processing import extract_text_from_image
 from media_processing.twitter_processor import TwitterMediaProcessor
+from media_processing.whatsapp_processor import WhatsAppMediaProcessor
 from moviepy.video.io.VideoFileClip import VideoFileClip
 import os
 from media_processing.tools.automate_input_processing import detect_and_process_file, detect_and_process_json
@@ -19,6 +20,7 @@ def allowed_file(filename):
 
 # Initialize the Twitter media processor
 processor = TwitterMediaProcessor(upload_folder='uploads')  
+whatsapp_processor = WhatsAppMediaProcessor(upload_folder='uploads')
 
 
 
@@ -353,6 +355,58 @@ def process_twitter_url():
         
         # Process the Twitter URL
         result = processor.process_twitter_url(twitter_url)
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+
+
+@media_processing_bp.route('/whatsapp/process', methods=['GET'])
+def process_whatsapp_url():
+    """
+    Process a WhatsApp media URL and extract content
+    Query parameters: 
+    - url: WhatsApp media URL
+    - token: WhatsApp API access token
+    Example: /whatsapp/process?url=https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=...&token=your_access_token
+    """
+    try:
+        whatsapp_url = request.args.get('url')
+        access_token = request.args.get('token')
+        
+        if not whatsapp_url:
+            return jsonify({
+                'error': 'Missing required parameter: url',
+                'example': '/whatsapp/process?url=https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=...&token=your_access_token'
+            }), 400
+        
+        if not access_token:
+            return jsonify({
+                'error': 'Missing required parameter: token',
+                'example': '/whatsapp/process?url=https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=...&token=your_access_token'
+            }), 400
+        
+        # Decode URL if it's encoded
+        whatsapp_url = urllib.parse.unquote(whatsapp_url)
+        
+        # Validate WhatsApp URL format
+        if not any(domain in whatsapp_url.lower() for domain in ['lookaside.fbsbx.com', 'scontent.whatsapp.net']):
+            return jsonify({
+                'error': 'Invalid WhatsApp media URL. Must be a valid WhatsApp media URL'
+            }), 400
+        
+        # Process the WhatsApp media URL
+        result = whatsapp_processor.process_whatsapp_media_url(whatsapp_url, access_token)
         
         if 'error' in result:
             return jsonify(result), 400
